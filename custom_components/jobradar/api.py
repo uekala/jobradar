@@ -253,6 +253,25 @@ def response_shape(path: str, data: Any) -> dict[str, Any]:
     return shape
 
 
+PAY_PARTS = ("verguet", "gehalt", "entgelt", "tarif", "lohn", "salary", "bezahl")
+
+
+def pay_fields(data: Any) -> dict[str, Any]:
+    """Alle Felder, die nach Vergütung klingen – nur für die Diagnose."""
+    if not isinstance(data, dict):
+        return {}
+    found: dict[str, Any] = {}
+    for key, value in data.items():
+        if not any(part in key.lower() for part in PAY_PARTS):
+            continue
+        if isinstance(value, str):
+            value = value[:200]
+        elif isinstance(value, (dict, list)):
+            value = str(value)[:200]
+        found[key] = value
+    return found
+
+
 class ShapeError(JobsucheError):
     """Treffer da, aber in einem Format, das Jobradar nicht kennt."""
 
@@ -296,6 +315,8 @@ class JobsucheClient:
         self.requests = 0
         self.hits = 0
         self.shapes: dict[str, dict[str, Any]] = {}
+        self.pay_samples: dict[str, int] = {}
+        self.detail_shape: dict[str, Any] | None = None
 
     def new_run(self) -> None:
         """Jede Suche probiert die Detailansicht neu."""
@@ -358,6 +379,11 @@ class JobsucheClient:
             await asyncio.sleep(PAUSE)
             items = result_items(data)
             jobs = [job for job in (parse_search_item(i, remote) for i in items) if job]
+            for item in items:
+                for key, value in pay_fields(item).items():
+                    sample = f"{key}={value}"
+                    if sample in self.pay_samples or len(self.pay_samples) < 25:
+                        self.pay_samples[sample] = self.pay_samples.get(sample, 0) + 1
             if items or total_hits(data) or path not in self.shapes:
                 self.shapes[path] = response_shape(path, data)
             if (items and not jobs) or (not items and total_hits(data) > 0):
@@ -400,6 +426,11 @@ class JobsucheClient:
             await asyncio.sleep(PAUSE)
             if isinstance(data, dict):
                 self._detail_misses = 0
+                self.detail_shape = {
+                    "path": path.split("/{")[0],
+                    "keys": sorted(data)[:80],
+                    "pay": pay_fields(data),
+                }
                 apply_details(job, data)
                 return True
         # Eine einzelne Lücke kann eine gerade gelöschte Stelle sein, mehrere in Folge nicht

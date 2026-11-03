@@ -8,6 +8,7 @@ from homeassistant.core import HomeAssistant
 
 from .const import CONF_EXCLUDED_EMPLOYERS
 from .coordinator import JobradarConfigEntry, settings
+from .scoring import Job
 
 
 async def async_get_config_entry_diagnostics(
@@ -15,6 +16,10 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     coordinator = entry.runtime_data
     data = coordinator.data
+    client = coordinator.client
+    if client.detail_shape is None and data and data.jobs:
+        # Eine Detailansicht zur Probe, damit die Diagnose ihr Format zeigt
+        await client.load_details(Job.from_dict(data.jobs[0].as_dict()))
     conf = settings(entry)
     conf[CONF_EXCLUDED_EMPLOYERS] = "**REDACTED**" if conf.get(CONF_EXCLUDED_EMPLOYERS) else ""
     return {
@@ -29,5 +34,7 @@ async def async_get_config_entry_diagnostics(
         "unread": len(data.unread) if data else 0,
         "search_path": coordinator.client._search_path,
         "details_available": coordinator.client._details_available,
-        "response_shapes": coordinator.client.shapes,
+        "response_shapes": client.shapes,
+        "pay_samples": client.pay_samples,
+        "detail_shape": client.detail_shape,
     }
