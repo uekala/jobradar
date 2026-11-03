@@ -66,6 +66,8 @@ class Snapshot:
     errors: int = 0
     requests: int = 0
     new_matches: int = 0
+    found: int = 0
+    best: list[dict[str, Any]] = field(default_factory=list)
 
 
 def settings(entry: ConfigEntry) -> dict[str, Any]:
@@ -240,6 +242,8 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
         promising = sorted(
             (j for j in new if not j.excluded and j.score >= min_score - 20), key=_sort_key
         )[:MAX_DETAILS_PER_RUN]
+        if found and not new:
+            _LOGGER.debug("%s Treffer, alle schon bekannt", len(found))
         for job in promising:
             if await self.client.load_details(job):
                 score_job(job, profile)
@@ -262,7 +266,17 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
                     {"entry_id": self.config_entry.entry_id, **job.as_dict(), "url": job.url},
                 )
 
-        return self._snapshot(queries=queries, errors=errors, new_matches=len(matched))
+        best = [
+            {"score": j.score, "title": j.title, "excluded": bool(j.excluded)}
+            for j in sorted(new, key=_sort_key)[:8]
+        ]
+        return self._snapshot(
+            queries=queries,
+            errors=errors,
+            new_matches=len(matched),
+            found=len(found),
+            best=best,
+        )
 
     # ---------- Benachrichtigung ----------
 

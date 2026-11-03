@@ -21,8 +21,9 @@ KREFELD = (51.3388, 6.5853)
 def job(
     refnr: str, title: str, employer: str, place: str, lat: float, lon: float, **extra: Any
 ) -> dict:
+    # So antwortet /pc/v6/jobs: die Kennung heißt dort referenznummer
     return {
-        "refnr": refnr,
+        "referenznummer": refnr,
         "titel": title,
         "beruf": extra.pop("beruf", "Systemadministrator/in"),
         "arbeitgeber": employer,

@@ -108,6 +108,17 @@ async def test_first_run_lists_matches_and_sends_one_summary(hass, jobboerse, pu
     assert "wo" not in remote
 
 
+async def test_diagnostics_show_hits_without_private_data(hass, jobboerse, pushes) -> None:
+    from custom_components.jobradar.diagnostics import async_get_config_entry_diagnostics
+
+    entry = await _setup(hass)
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    assert diag["hits"] >= 5 and diag["matching_jobs"] == 2
+    assert diag["response_shape"]["path"] == "/pc/v6/jobs"
+    assert "referenznummer" in diag["response_shape"]["item_keys"]
+    assert "Stadt Krefeld" not in str(diag) and "KRZN" not in str(diag)
+
+
 async def test_new_job_is_pushed_with_buttons_and_event(hass, jobboerse, pushes) -> None:
     await _setup(hass)
     events = async_capture_events(hass, EVENT_NEW_JOB)

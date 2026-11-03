@@ -8,7 +8,14 @@ from http import HTTPStatus
 import pytest
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from custom_components.jobradar.api import BASE_URL, JobsucheClient, JobsucheError, apply_details
+from custom_components.jobradar.api import (
+    BASE_URL,
+    JobsucheClient,
+    JobsucheError,
+    ShapeError,
+    apply_details,
+    parse_search_item,
+)
 from custom_components.jobradar.scoring import Job
 
 pytestmark = pytest.mark.usefixtures("no_pause")
@@ -61,6 +68,45 @@ async def test_empty_result_and_unknown_shape(hass, aioclient_mock) -> None:
         )
         == []
     )
+
+
+def test_v6_item_with_referenznummer() -> None:
+    job = parse_search_item(
+        {
+            "referenznummer": "10000-2-S",
+            "titel": "Systemadministrator (m/w/d)",
+            "arbeitgeber": {"name": "Muster AG"},
+            "arbeitsorte": [{"ort": "Neuss", "koordinaten": {"lat": 51.2, "lon": 6.69}}],
+            "veroeffentlichungsdatum": "2026-11-02T08:00:00",
+        },
+        remote=False,
+    )
+    assert job is not None
+    assert job.refnr == "10000-2-S" and job.employer == "Muster AG"
+    assert job.place == "Neuss" and job.lon == 6.69 and job.published == "2026-11-02"
+
+
+async def test_unknown_item_format_tries_next_path(hass, aioclient_mock) -> None:
+    aioclient_mock.get(f"{BASE_URL}/pc/v6/jobs", json={"stellenangebote": [{"kennung": "x"}]})
+    aioclient_mock.get(f"{BASE_URL}/pc/v4/app/jobs", json={"stellenangebote": [ITEM]})
+    client = JobsucheClient(async_get_clientsession(hass))
+    jobs = await client.search(
+        "x", location=None, radius=None, remote=True, days=2, exclude_temp_agencies=False
+    )
+    assert [j.refnr for j in jobs] == ["10000-1-S"]
+    assert client.hits == 1 and client.last_shape["path"] == "/pc/v4/app/jobs"
+    assert client.last_shape["item_keys"] == sorted(ITEM)
+
+
+async def test_unknown_format_everywhere_is_an_error(hass, aioclient_mock) -> None:
+    for path in ("/pc/v6/jobs", "/pc/v4/app/jobs", "/pc/v4/jobs"):
+        aioclient_mock.get(f"{BASE_URL}{path}", json={"stellenangebote": [{"kennung": "x"}]})
+    client = JobsucheClient(async_get_clientsession(hass))
+    with pytest.raises(ShapeError):
+        await client.search(
+            "x", location=None, radius=None, remote=True, days=2, exclude_temp_agencies=False
+        )
+    assert client.last_shape["item_keys"] == ["kennung"]
 
 
 async def test_details_switch_off_after_repeated_misses(hass, aioclient_mock) -> None:

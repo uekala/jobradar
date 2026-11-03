@@ -23,8 +23,11 @@ async def async_get_config_entry_diagnostics(
         "queries": data.queries if data else None,
         "errors": data.errors if data else None,
         "requests": data.requests if data else None,
+        "hits": data.found if data else 0,
+        "best_new_scores": data.best if data else [],
         "matching_jobs": len(data.jobs) if data else 0,
         "unread": len(data.unread) if data else 0,
         "search_path": coordinator.client._search_path,
         "details_available": coordinator.client._details_available,
+        "response_shape": coordinator.client.last_shape,
     }

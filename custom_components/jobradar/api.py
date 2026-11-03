@@ -51,27 +51,101 @@ def _text(value: Any) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+def _first(item: dict[str, Any], *keys: str) -> str:
+    """Erster nicht leere Text unter mehreren möglichen Feldnamen."""
+    for key in keys:
+        value = _text(item.get(key))
+        if value:
+            return value
+    return ""
+
+
+def _name(value: Any) -> str:
+    """Arbeitgeber kommt je nach Version als Text oder als Objekt."""
+    if isinstance(value, dict):
+        return _first(value, "name", "bezeichnung", "arbeitgeber")
+    return _text(value)
+
+
+def _place(item: dict[str, Any]) -> dict[str, Any]:
+    place = item.get("arbeitsort")
+    if not isinstance(place, dict):
+        places = item.get("arbeitsorte")
+        place = places[0] if isinstance(places, list) and places else {}
+    return place if isinstance(place, dict) else {}
+
+
+def _coord(coords: dict[str, Any], *keys: str) -> float | None:
+    for key in keys:
+        value = coords.get(key)
+        if isinstance(value, (int, float)):
+            return float(value)
+    return None
+
+
+# Felder je nach Version: v4 nennt die Kennung refnr, v6 referenznummer
+ID_KEYS = ("refnr", "referenznummer", "referenzNummer")
+TITLE_KEYS = ("titel", "stellenangebotsTitel", "stellentitel", "beruf")
+DATE_KEYS = (
+    "aktuelleVeroeffentlichungsdatum",
+    "veroeffentlichungsdatum",
+    "ersteVeroeffentlichungsdatum",
+)
+LIST_KEYS = ("stellenangebote", "ergebnisse", "jobs", "content", "items", "results")
+
+
 def parse_search_item(item: dict[str, Any], remote: bool) -> Job | None:
-    refnr = _text(item.get("refnr"))
+    refnr = _first(item, *ID_KEYS)
     if not refnr:
         return None
-    place = item.get("arbeitsort") or {}
+    place = _place(item)
     coords = place.get("koordinaten") or {}
+    if not isinstance(coords, dict):
+        coords = {}
     return Job(
         refnr=refnr,
-        title=_text(item.get("titel")) or _text(item.get("beruf")),
+        title=_first(item, *TITLE_KEYS),
         occupation=_text(item.get("beruf")),
-        employer=_text(item.get("arbeitgeber")),
+        employer=_name(item.get("arbeitgeber")) or _text(item.get("arbeitgeberName")),
         place=_text(place.get("ort")),
         postcode=str(place.get("plz") or ""),
         region=_text(place.get("region")),
-        lat=coords.get("lat") if isinstance(coords.get("lat"), (int, float)) else None,
-        lon=coords.get("lon") if isinstance(coords.get("lon"), (int, float)) else None,
-        published=_text(item.get("aktuelleVeroeffentlichungsdatum")),
-        start=_text(item.get("eintrittsdatum")),
-        external_url=_text(item.get("externeUrl")),
+        lat=_coord(coords, "lat", "breite"),
+        lon=_coord(coords, "lon", "laenge"),
+        published=_first(item, *DATE_KEYS)[:10],
+        start=_text(item.get("eintrittsdatum"))[:10],
+        external_url=_first(item, "externeUrl", "externeURL"),
         remote=remote,
     )
+
+
+def result_items(data: Any) -> list[dict[str, Any]]:
+    """Trefferliste aus der Antwort; ohne Treffer fehlt sie ganz."""
+    if not isinstance(data, dict):
+        return []
+    for key in LIST_KEYS:
+        value = data.get(key)
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, dict)]
+    return []
+
+
+def response_shape(path: str, data: Any) -> dict[str, Any]:
+    """Nur Feldnamen und Zahlen – hilft, wenn die Bundesagentur das Format ändert."""
+    if not isinstance(data, dict):
+        return {"path": path, "type": type(data).__name__}
+    items = result_items(data)
+    return {
+        "path": path,
+        "keys": sorted(data)[:30],
+        "total": data.get("maxErgebnisse"),
+        "items": len(items),
+        "item_keys": sorted(items[0])[:40] if items else [],
+    }
+
+
+class ShapeError(JobsucheError):
+    """Treffer da, aber in einem Format, das Jobradar nicht kennt."""
 
 
 def apply_details(job: Job, data: dict[str, Any]) -> Job:
@@ -101,11 +175,14 @@ class JobsucheClient:
         self._details_available = True
         self._detail_misses = 0
         self.requests = 0
+        self.hits = 0
+        self.last_shape: dict[str, Any] | None = None
 
     def new_run(self) -> None:
         """Jede Suche probiert die Detailansicht neu."""
         self._details_available = True
         self._detail_misses = 0
+        self.hits = 0
 
     async def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
         self.requests += 1
@@ -143,7 +220,11 @@ class JobsucheClient:
         if exclude_temp_agencies:
             params["zeitarbeit"] = "false"
 
-        paths = [self._search_path] if self._search_path else list(SEARCH_PATHS)
+        # Der zuletzt funktionierende Pfad zuerst, die anderen als Ausweichroute
+        paths = list(SEARCH_PATHS)
+        if self._search_path in paths:
+            paths.remove(self._search_path)
+            paths.insert(0, self._search_path)
         last_error: Exception | None = None
         for path in paths:
             try:
@@ -155,15 +236,27 @@ class JobsucheClient:
                 continue
             except (aiohttp.ClientError, TimeoutError) as err:
                 raise JobsucheError(str(err)) from err
-            self._search_path = path
             await asyncio.sleep(PAUSE)
-            items = data.get("stellenangebote") if isinstance(data, dict) else None
-            jobs = [
-                parse_search_item(item, remote) for item in items or [] if isinstance(item, dict)
-            ]
-            return [job for job in jobs if job]
+            items = result_items(data)
+            jobs = [job for job in (parse_search_item(i, remote) for i in items) if job]
+            if items or self.last_shape is None or self.last_shape.get("path") != path:
+                self.last_shape = response_shape(path, data)
+            if items and not jobs:
+                # Format geändert: andere Route probieren statt still nichts zu finden
+                _LOGGER.warning(
+                    "Unbekanntes Trefferformat unter %s, Felder: %s",
+                    path,
+                    ", ".join(sorted(items[0])[:20]),
+                )
+                last_error = ShapeError(f"Unbekanntes Trefferformat unter {path}")
+                continue
+            self._search_path = path
+            self.hits += len(jobs)
+            return jobs
         # Beim nächsten Mal alle Pfade neu probieren
         self._search_path = None
+        if isinstance(last_error, ShapeError):
+            raise last_error
         raise JobsucheError(f"Kein Suchpfad erreichbar ({last_error})")
 
     async def load_details(self, job: Job) -> bool:
