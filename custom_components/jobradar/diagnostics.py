@@ -42,5 +42,6 @@ async def async_get_config_entry_diagnostics(
             "hits": coordinator.bund.hits,
             "errors": coordinator.bund.errors,
             "last_error": coordinator.bund.last_error,
+            "last_response": coordinator.bund.last_response,
         },
     }

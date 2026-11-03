@@ -132,6 +132,7 @@ class BundClient:
         self.hits = 0
         self.errors = 0
         self.last_error = ""
+        self.last_response: dict[str, object] = {}
 
     async def search(self, term: str, *, location: str | None, radius: int | None) -> list[Job]:
         self.requests += 1
@@ -142,9 +143,18 @@ class BundClient:
                 headers=HEADERS,
                 timeout=TIMEOUT,
             ) as response:
+                text = await response.text()
+                # Nur Kopf und Zahlen, damit sich Formatwechsel erkennen lassen
+                self.last_response = {
+                    "url": str(response.url),
+                    "status": response.status,
+                    "content_type": response.content_type,
+                    "length": len(text),
+                    "items": text.count("<item>"),
+                    "head": text[:400],
+                }
                 if response.status >= 400:
                     raise BundError(f"HTTP {response.status}")
-                text = await response.text()
             jobs = parse_feed(text)
         except BundError as err:
             self.errors += 1
@@ -152,7 +162,7 @@ class BundClient:
             raise
         except (aiohttp.ClientError, TimeoutError, UnicodeDecodeError) as err:
             self.errors += 1
-            self.last_error = str(err)
+            self.last_error = f"{type(err).__name__}: {err}"
             raise BundError(str(err)) from err
         self.hits += len(jobs)
         return jobs
