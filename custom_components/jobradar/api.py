@@ -91,11 +91,22 @@ DATE_KEYS = (
     "veroeffentlichungsdatum",
     "ersteVeroeffentlichungsdatum",
 )
-LIST_KEYS = ("stellenangebote", "ergebnisse", "jobs", "content", "items", "results")
+# v4 liefert die Treffer unter stellenangebote, v6 unter ergebnisliste
+LIST_KEYS = ("stellenangebote", "ergebnisliste", "ergebnisse", "jobs", "content", "items")
+
+
+def _fuzzy(item: dict[str, Any], *parts: str) -> str:
+    """Notnagel: erstes Textfeld, dessen Name einen der Wortteile enthält."""
+    for key, value in item.items():
+        if any(part in key.lower() for part in parts):
+            text = _text(value)
+            if text:
+                return text
+    return ""
 
 
 def parse_search_item(item: dict[str, Any], remote: bool) -> Job | None:
-    refnr = _first(item, *ID_KEYS)
+    refnr = _first(item, *ID_KEYS) or _fuzzy(item, "refnr", "referenz")
     if not refnr:
         return None
     place = _place(item)
@@ -104,7 +115,7 @@ def parse_search_item(item: dict[str, Any], remote: bool) -> Job | None:
         coords = {}
     return Job(
         refnr=refnr,
-        title=_first(item, *TITLE_KEYS),
+        title=_first(item, *TITLE_KEYS) or _fuzzy(item, "titel"),
         occupation=_text(item.get("beruf")),
         employer=_name(item.get("arbeitgeber")) or _text(item.get("arbeitgeberName")),
         place=_text(place.get("ort")),
@@ -112,11 +123,17 @@ def parse_search_item(item: dict[str, Any], remote: bool) -> Job | None:
         region=_text(place.get("region")),
         lat=_coord(coords, "lat", "breite"),
         lon=_coord(coords, "lon", "laenge"),
-        published=_first(item, *DATE_KEYS)[:10],
+        published=(_first(item, *DATE_KEYS) or _fuzzy(item, "veroeffentlich"))[:10],
         start=_text(item.get("eintrittsdatum"))[:10],
         external_url=_first(item, "externeUrl", "externeURL"),
         remote=remote,
     )
+
+
+def _dicts(value: Any) -> list[dict[str, Any]] | None:
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, dict)]
+    return None
 
 
 def result_items(data: Any) -> list[dict[str, Any]]:
@@ -125,9 +142,32 @@ def result_items(data: Any) -> list[dict[str, Any]]:
         return []
     for key in LIST_KEYS:
         value = data.get(key)
-        if isinstance(value, list):
-            return [item for item in value if isinstance(item, dict)]
+        items = _dicts(value)
+        if items is not None:
+            return items
+        if isinstance(value, dict):
+            # Liste eine Ebene tiefer, etwa {"ergebnisliste": {"stellenangebote": [...]}}
+            for inner in value.values():
+                items = _dicts(inner)
+                if items:
+                    return items
     return []
+
+
+def total_hits(data: Any) -> int:
+    try:
+        return int(data.get("maxErgebnisse") or 0) if isinstance(data, dict) else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+def _keys(value: Any) -> Any:
+    if isinstance(value, dict):
+        return sorted(value)[:40]
+    if isinstance(value, list):
+        first = value[0] if value else None
+        return [_keys(first)] if isinstance(first, dict) else f"list[{len(value)}]"
+    return type(value).__name__
 
 
 def response_shape(path: str, data: Any) -> dict[str, Any]:
@@ -135,13 +175,18 @@ def response_shape(path: str, data: Any) -> dict[str, Any]:
     if not isinstance(data, dict):
         return {"path": path, "type": type(data).__name__}
     items = result_items(data)
-    return {
+    shape: dict[str, Any] = {
         "path": path,
-        "keys": sorted(data)[:30],
+        "keys": {key: _keys(value) for key, value in list(data.items())[:20] if key != "facetten"},
         "total": data.get("maxErgebnisse"),
         "items": len(items),
         "item_keys": sorted(items[0])[:40] if items else [],
     }
+    if items:
+        shape["item_nested"] = {
+            key: _keys(value) for key, value in items[0].items() if isinstance(value, (dict, list))
+        }
+    return shape
 
 
 class ShapeError(JobsucheError):
@@ -176,7 +221,7 @@ class JobsucheClient:
         self._detail_misses = 0
         self.requests = 0
         self.hits = 0
-        self.last_shape: dict[str, Any] | None = None
+        self.shapes: dict[str, dict[str, Any]] = {}
 
     def new_run(self) -> None:
         """Jede Suche probiert die Detailansicht neu."""
@@ -239,14 +284,14 @@ class JobsucheClient:
             await asyncio.sleep(PAUSE)
             items = result_items(data)
             jobs = [job for job in (parse_search_item(i, remote) for i in items) if job]
-            if items or self.last_shape is None or self.last_shape.get("path") != path:
-                self.last_shape = response_shape(path, data)
-            if items and not jobs:
+            if items or total_hits(data) or path not in self.shapes:
+                self.shapes[path] = response_shape(path, data)
+            if (items and not jobs) or (not items and total_hits(data) > 0):
                 # Format geändert: andere Route probieren statt still nichts zu finden
                 _LOGGER.warning(
                     "Unbekanntes Trefferformat unter %s, Felder: %s",
                     path,
-                    ", ".join(sorted(items[0])[:20]),
+                    ", ".join(sorted(items[0] if items else data)[:20]),
                 )
                 last_error = ShapeError(f"Unbekanntes Trefferformat unter {path}")
                 continue

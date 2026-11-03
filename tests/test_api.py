@@ -94,8 +94,9 @@ async def test_unknown_item_format_tries_next_path(hass, aioclient_mock) -> None
         "x", location=None, radius=None, remote=True, days=2, exclude_temp_agencies=False
     )
     assert [j.refnr for j in jobs] == ["10000-1-S"]
-    assert client.hits == 1 and client.last_shape["path"] == "/pc/v4/app/jobs"
-    assert client.last_shape["item_keys"] == sorted(ITEM)
+    assert client.hits == 1 and client._search_path == "/pc/v4/app/jobs"
+    assert client.shapes["/pc/v6/jobs"]["item_keys"] == ["kennung"]
+    assert client.shapes["/pc/v4/app/jobs"]["item_keys"] == sorted(ITEM)
 
 
 async def test_unknown_format_everywhere_is_an_error(hass, aioclient_mock) -> None:
@@ -106,7 +107,32 @@ async def test_unknown_format_everywhere_is_an_error(hass, aioclient_mock) -> No
         await client.search(
             "x", location=None, radius=None, remote=True, days=2, exclude_temp_agencies=False
         )
-    assert client.last_shape["item_keys"] == ["kennung"]
+    assert client.shapes["/pc/v4/jobs"]["item_keys"] == ["kennung"]
+
+
+async def test_v6_list_under_ergebnisliste(hass, aioclient_mock) -> None:
+    hit = {"referenznummer": "10000-3-S", "titel": "Cloud Engineer (m/w/d)"}
+    aioclient_mock.get(
+        f"{BASE_URL}/pc/v6/jobs",
+        json={"ergebnisliste": [hit], "maxErgebnisse": 137, "woOutput": {"ort": "Krefeld"}},
+    )
+    client = JobsucheClient(async_get_clientsession(hass))
+    jobs = await client.search(
+        "x", location="Krefeld", radius=50, remote=False, days=2, exclude_temp_agencies=False
+    )
+    assert [j.title for j in jobs] == ["Cloud Engineer (m/w/d)"]
+    shape = client.shapes["/pc/v6/jobs"]
+    assert shape["items"] == 1 and shape["keys"]["woOutput"] == ["ort"]
+
+
+async def test_total_without_readable_list_is_an_error(hass, aioclient_mock) -> None:
+    for path in ("/pc/v6/jobs", "/pc/v4/app/jobs", "/pc/v4/jobs"):
+        aioclient_mock.get(f"{BASE_URL}{path}", json={"treffer": "?", "maxErgebnisse": "12"})
+    client = JobsucheClient(async_get_clientsession(hass))
+    with pytest.raises(ShapeError):
+        await client.search(
+            "x", location=None, radius=None, remote=True, days=2, exclude_temp_agencies=False
+        )
 
 
 async def test_details_switch_off_after_repeated_misses(hass, aioclient_mock) -> None:

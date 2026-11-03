@@ -122,9 +122,13 @@ class FakeJobboerse:
         pool = self.remote if query.get("arbeitszeit") == "ho" else self.local
         term = query.get("was", "").lower().replace("-", "")
         hits = [j for j in pool if _hit(term, j)]
-        return AiohttpClientMockResponse(
-            method, url, json={"stellenangebote": hits, "maxErgebnisse": len(hits)}
-        )
+        # So antwortet /pc/v6/jobs: Liste unter ergebnisliste, Ortsangabe in woOutput
+        body: dict = {"maxErgebnisse": len(hits), "page": 1, "size": 50, "facetten": {}}
+        if hits:
+            body["ergebnisliste"] = hits
+        if query.get("wo"):
+            body["woOutput"] = {"ort": query["wo"]}
+        return AiohttpClientMockResponse(method, url, json=body)
 
     async def _details(self, method, url, data) -> AiohttpClientMockResponse:
         code = url.path.rsplit("/", 1)[-1]

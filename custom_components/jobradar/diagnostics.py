@@ -29,5 +29,5 @@ async def async_get_config_entry_diagnostics(
         "unread": len(data.unread) if data else 0,
         "search_path": coordinator.client._search_path,
         "details_available": coordinator.client._details_available,
-        "response_shape": coordinator.client.last_shape,
+        "response_shapes": coordinator.client.shapes,
     }

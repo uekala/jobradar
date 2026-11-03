@@ -114,8 +114,9 @@ async def test_diagnostics_show_hits_without_private_data(hass, jobboerse, pushe
     entry = await _setup(hass)
     diag = await async_get_config_entry_diagnostics(hass, entry)
     assert diag["hits"] >= 5 and diag["matching_jobs"] == 2
-    assert diag["response_shape"]["path"] == "/pc/v6/jobs"
-    assert "referenznummer" in diag["response_shape"]["item_keys"]
+    shape = diag["response_shapes"]["/pc/v6/jobs"]
+    assert "ergebnisliste" in shape["keys"] and "referenznummer" in shape["item_keys"]
+    assert shape["item_nested"]["arbeitsort"] == ["koordinaten", "ort", "plz", "region"]
     assert "Stadt Krefeld" not in str(diag) and "KRZN" not in str(diag)
 
 
