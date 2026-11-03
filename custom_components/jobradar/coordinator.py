@@ -48,7 +48,15 @@ from .const import (
     SEEN_DAYS,
     STORAGE_VERSION,
 )
-from .scoring import Job, Profile, distance_km, parse_list, published_date, score_job
+from .scoring import (
+    Job,
+    Profile,
+    distance_km,
+    normalize,
+    parse_list,
+    published_date,
+    score_job,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -156,6 +164,19 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
             }
         )
 
+    @staticmethod
+    def _same_posting(job: Job) -> tuple[str, str] | None:
+        """Gleiche Stelle, mehrfach ausgeschrieben (etwa für mehrere Standorte)."""
+        if not job.employer:
+            return None
+        return normalize(job.title), normalize(job.employer)
+
+    def _set_distance(self, job: Job) -> None:
+        if job.remote or job.lat is None or job.lon is None:
+            return
+        home = (self.hass.config.latitude, self.hass.config.longitude)
+        job.distance_km = round(distance_km(home[0], home[1], job.lat, job.lon), 1)
+
     def _snapshot(self, **extra: Any) -> Snapshot:
         jobs = sorted(
             self._jobs.values(), key=lambda j: (j.refnr not in self._unread, *_sort_key(j))
@@ -218,7 +239,8 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
     async def _async_update_data(self) -> Snapshot:
         first_run = not self._initialized
         self.client.new_run()
-        found, queries, errors = await self._async_search(FIRST_RUN_DAYS if first_run else RUN_DAYS)
+        days = FIRST_RUN_DAYS if first_run else RUN_DAYS
+        found, queries, errors = await self._async_search(days)
         if queries and errors == queries:
             raise UpdateFailed("Die Jobbörse der Bundesagentur ist gerade nicht erreichbar")
 
@@ -226,7 +248,14 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
         self._last_search = now
         profile = self.profile
         min_score = self.min_score
-        home = (self.hass.config.latitude, self.hass.config.longitude)
+        # Die v6-Suche beachtet veroeffentlichtseit nicht zuverlässig
+        cutoff = (dt_util.now() - timedelta(days=days)).date()
+        hits = len(found)
+        found = {
+            refnr: job
+            for refnr, job in found.items()
+            if (published := published_date(job)) is None or published >= cutoff
+        }
 
         new = [
             job
@@ -235,8 +264,7 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
         ]
         for job in new:
             self._seen[job.refnr] = now.isoformat()
-            if job.lat is not None and job.lon is not None and not job.remote:
-                job.distance_km = round(distance_km(home[0], home[1], job.lat, job.lon), 1)
+            self._set_distance(job)
             score_job(job, profile)
 
         promising = sorted(
@@ -246,9 +274,20 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
             _LOGGER.debug("%s Treffer, alle schon bekannt", len(found))
         for job in promising:
             if await self.client.load_details(job):
+                if job.distance_km is None:
+                    self._set_distance(job)
                 score_job(job, profile)
 
-        matched = sorted((j for j in new if not j.excluded and j.score >= min_score), key=_sort_key)
+        known = {key for job in self._jobs.values() if (key := self._same_posting(job))}
+        matched: list[Job] = []
+        hits_ok = (j for j in new if not j.excluded and j.score >= min_score)
+        for job in sorted(hits_ok, key=_sort_key):
+            key = self._same_posting(job)
+            if key and key in known:
+                continue
+            if key:
+                known.add(key)
+            matched.append(job)
         for job in matched:
             self._jobs[job.refnr] = job
             self._unread.add(job.refnr)
@@ -274,7 +313,7 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
             queries=queries,
             errors=errors,
             new_matches=len(matched),
-            found=len(found),
+            found=hits,
             best=best,
         )
 

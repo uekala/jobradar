@@ -67,12 +67,31 @@ def _name(value: Any) -> str:
     return _text(value)
 
 
-def _place(item: dict[str, Any]) -> dict[str, Any]:
-    place = item.get("arbeitsort")
+def _place(item: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Arbeitsort und Koordinaten.
+
+    v4: arbeitsort{ort, plz, koordinaten{lat, lon}} oder arbeitsorte[...];
+    v6: stellenlokationen[{adresse{ort, plz, ...}, breite, laenge}].
+    """
+    place: Any = item.get("arbeitsort")
     if not isinstance(place, dict):
-        places = item.get("arbeitsorte")
-        place = places[0] if isinstance(places, list) and places else {}
-    return place if isinstance(place, dict) else {}
+        for key in ("arbeitsorte", "stellenlokationen"):
+            places = item.get(key)
+            if isinstance(places, list) and places and isinstance(places[0], dict):
+                place = places[0]
+                break
+    if not isinstance(place, dict):
+        return {}, {}
+    coords = place.get("koordinaten")
+    coords = coords if isinstance(coords, dict) else place
+    address = place.get("adresse")
+    if isinstance(address, dict):
+        if not isinstance(place.get("koordinaten"), dict) and isinstance(
+            address.get("koordinaten"), dict
+        ):
+            coords = address["koordinaten"]
+        place = {**place, **address}
+    return place, coords
 
 
 def _coord(coords: dict[str, Any], *keys: str) -> float | None:
@@ -80,14 +99,37 @@ def _coord(coords: dict[str, Any], *keys: str) -> float | None:
         value = coords.get(key)
         if isinstance(value, (int, float)):
             return float(value)
+        if isinstance(value, str):
+            try:
+                return float(value.replace(",", "."))
+            except ValueError:
+                continue
+    return None
+
+
+def _from(item: dict[str, Any], key: str) -> str:
+    """Datum aus einem Zeitraum-Objekt wie {"von": "2026-11-02"}."""
+    value = item.get(key)
+    return _text(value.get("von")) if isinstance(value, dict) else _text(value)
+
+
+def _km(value: Any) -> float | None:
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.replace(",", ".").replace("km", "").strip())
+        except ValueError:
+            return None
     return None
 
 
 # Felder je nach Version: v4 nennt die Kennung refnr, v6 referenznummer
 ID_KEYS = ("refnr", "referenznummer", "referenzNummer")
-TITLE_KEYS = ("titel", "stellenangebotsTitel", "stellentitel", "beruf")
+TITLE_KEYS = ("titel", "stellenangebotsTitel", "stellentitel", "beruf", "hauptberuf")
 DATE_KEYS = (
     "aktuelleVeroeffentlichungsdatum",
+    "datumErsteVeroeffentlichung",
     "veroeffentlichungsdatum",
     "ersteVeroeffentlichungsdatum",
 )
@@ -109,25 +151,35 @@ def parse_search_item(item: dict[str, Any], remote: bool) -> Job | None:
     refnr = _first(item, *ID_KEYS) or _fuzzy(item, "refnr", "referenz")
     if not refnr:
         return None
-    place = _place(item)
-    coords = place.get("koordinaten") or {}
-    if not isinstance(coords, dict):
-        coords = {}
-    return Job(
+    place, coords = _place(item)
+    published = (
+        _first(item, *DATE_KEYS)
+        or _from(item, "veroeffentlichungszeitraum")
+        or _fuzzy(item, "veroeffentlich")
+    )
+    job = Job(
         refnr=refnr,
         title=_first(item, *TITLE_KEYS) or _fuzzy(item, "titel"),
-        occupation=_text(item.get("beruf")),
-        employer=_name(item.get("arbeitgeber")) or _text(item.get("arbeitgeberName")),
+        occupation=_first(item, "beruf", "hauptberuf"),
+        employer=(
+            _name(item.get("arbeitgeber"))
+            or _name(item.get("firma"))
+            or _text(item.get("arbeitgeberName"))
+        ),
         place=_text(place.get("ort")),
         postcode=str(place.get("plz") or ""),
         region=_text(place.get("region")),
         lat=_coord(coords, "lat", "breite"),
         lon=_coord(coords, "lon", "laenge"),
-        published=(_first(item, *DATE_KEYS) or _fuzzy(item, "veroeffentlich"))[:10],
-        start=_text(item.get("eintrittsdatum"))[:10],
+        published=published[:10],
+        start=(_text(item.get("eintrittsdatum")) or _from(item, "eintrittszeitraum"))[:10],
         external_url=_first(item, "externeUrl", "externeURL"),
         remote=remote,
     )
+    # v6 rechnet die Entfernung zum Suchort selbst aus
+    if not remote:
+        job.distance_km = _km(item.get("entfernung"))
+    return job
 
 
 def _dicts(value: Any) -> list[dict[str, Any]] | None:
@@ -183,9 +235,17 @@ def response_shape(path: str, data: Any) -> dict[str, Any]:
         "item_keys": sorted(items[0])[:40] if items else [],
     }
     if items:
-        shape["item_nested"] = {
-            key: _keys(value) for key, value in items[0].items() if isinstance(value, (dict, list))
-        }
+        nested: dict[str, Any] = {}
+        for key, value in items[0].items():
+            if not isinstance(value, (dict, list)):
+                continue
+            nested[key] = _keys(value)
+            first = value[0] if isinstance(value, list) and value else value
+            if isinstance(first, dict):
+                for sub, inner in first.items():
+                    if isinstance(inner, (dict, list)):
+                        nested[f"{key}.{sub}"] = _keys(inner)
+        shape["item_nested"] = nested
     return shape
 
 
@@ -207,6 +267,16 @@ def apply_details(job: Job, data: dict[str, Any]) -> Job:
     title = _text(data.get("stellenangebotsTitel")) or _text(data.get("titel"))
     if title:
         job.title = title
+    if not job.employer:
+        job.employer = _name(data.get("arbeitgeber")) or _name(data.get("firma"))
+    if not job.place:
+        place, coords = _place(data)
+        job.place = _text(place.get("ort"))
+        job.postcode = job.postcode or str(place.get("plz") or "")
+        job.region = job.region or _text(place.get("region"))
+        if job.lat is None:
+            job.lat = _coord(coords, "lat", "breite")
+            job.lon = _coord(coords, "lon", "laenge")
     job.details_loaded = True
     return job
 

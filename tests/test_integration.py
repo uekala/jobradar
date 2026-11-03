@@ -28,7 +28,7 @@ from custom_components.jobradar.const import (
     EVENT_NEW_JOB,
 )
 
-from .conftest import job
+from .conftest import days_ago, job
 
 BASE = {
     CONF_LOCATION: "Krefeld",
@@ -116,7 +116,7 @@ async def test_diagnostics_show_hits_without_private_data(hass, jobboerse, pushe
     assert diag["hits"] >= 5 and diag["matching_jobs"] == 2
     shape = diag["response_shapes"]["/pc/v6/jobs"]
     assert "ergebnisliste" in shape["keys"] and "referenznummer" in shape["item_keys"]
-    assert shape["item_nested"]["arbeitsort"] == ["koordinaten", "ort", "plz", "region"]
+    assert shape["item_nested"]["stellenlokationen.adresse"] == ["ort", "plz", "region"]
     assert "Stadt Krefeld" not in str(diag) and "KRZN" not in str(diag)
 
 
@@ -160,6 +160,33 @@ async def test_new_job_is_pushed_with_buttons_and_event(hass, jobboerse, pushes)
     )
     await hass.async_block_till_done()
     assert _state(hass, "matching_jobs").state == "2"
+
+
+async def test_old_and_duplicate_postings_are_not_reported(hass, jobboerse, pushes) -> None:
+    await _setup(hass)
+    pushes.clear()
+    # v6 liefert trotz veroeffentlichtseit=2 auch ältere Stellen
+    jobboerse.local.append(
+        job(
+            "10000-0000000010-S",
+            "Systemadministrator VMware (m/w/d)",
+            "Alte Anzeige GmbH",
+            "Krefeld",
+            51.34,
+            6.59,
+            published=days_ago(9),
+        )
+    )
+    # Dieselbe Stelle für zwei Standorte
+    for refnr, place in (("10000-0000000011-S", "Neuss"), ("10000-0000000012-S", "Moers")):
+        jobboerse.local.append(
+            job(refnr, "Linux-Administrator (m/w/d)", "Doppel AG", place, 51.3, 6.6)
+        )
+
+    await _next_run(hass)
+
+    assert [p.data["title"] for p in pushes] == ["Linux-Administrator (m/w/d)"]
+    assert pushes[0].data["message"].startswith("Doppel AG, Neuss")
 
 
 async def test_buttons_and_services(hass, jobboerse, pushes) -> None:

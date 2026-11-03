@@ -70,6 +70,30 @@ async def test_empty_result_and_unknown_shape(hass, aioclient_mock) -> None:
     )
 
 
+def test_v6_item_as_seen_live() -> None:
+    job = parse_search_item(
+        {
+            "referenznummer": "10001-1003936970-S",
+            "stellenangebotsTitel": "Senior VMware & Storage Engineer (m/w/d)",
+            "hauptberuf": "Systemadministrator/in",
+            "firma": "Muster Rechenzentrum GmbH",
+            "datumErsteVeroeffentlichung": "2026-10-30",
+            "veroeffentlichungszeitraum": {"von": "2026-10-30"},
+            "eintrittszeitraum": {"von": "2026-12-01"},
+            "stellenlokationen": [
+                {"adresse": {"ort": "Düsseldorf", "plz": "40210"}, "breite": 51.22, "laenge": 6.78}
+            ],
+            "entfernung": "21",
+        },
+        remote=False,
+    )
+    assert job is not None
+    assert job.employer == "Muster Rechenzentrum GmbH" and job.place == "Düsseldorf"
+    assert job.lat == 51.22 and job.lon == 6.78 and job.postcode == "40210"
+    assert job.published == "2026-10-30" and job.start == "2026-12-01"
+    assert job.occupation == "Systemadministrator/in" and job.distance_km == 21
+
+
 def test_v6_item_with_referenznummer() -> None:
     job = parse_search_item(
         {

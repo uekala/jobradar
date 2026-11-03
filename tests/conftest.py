@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import re
 from collections.abc import Callable
+from datetime import date, timedelta
 from http import HTTPStatus
 from typing import Any
 
@@ -18,23 +19,31 @@ pytest_plugins = ["pytest_homeassistant_custom_component"]
 KREFELD = (51.3388, 6.5853)
 
 
+def days_ago(days: int) -> str:
+    return (date.today() - timedelta(days=days)).isoformat()
+
+
 def job(
     refnr: str, title: str, employer: str, place: str, lat: float, lon: float, **extra: Any
 ) -> dict:
-    # So antwortet /pc/v6/jobs: die Kennung heißt dort referenznummer
+    """Ein Treffer, wie ihn /pc/v6/jobs liefert (Feldnamen aus einer echten Antwort)."""
     return {
         "referenznummer": refnr,
-        "titel": title,
-        "beruf": extra.pop("beruf", "Systemadministrator/in"),
-        "arbeitgeber": employer,
-        "aktuelleVeroeffentlichungsdatum": extra.pop("published", "2026-11-02"),
-        "eintrittsdatum": "2027-01-01",
-        "arbeitsort": {
-            "ort": place,
-            "plz": "40210",
-            "region": "Nordrhein-Westfalen",
-            "koordinaten": {"lat": lat, "lon": lon},
-        },
+        "stellenangebotsTitel": title,
+        "hauptberuf": extra.pop("beruf", "Systemadministrator/in"),
+        "firma": employer,
+        "datumErsteVeroeffentlichung": extra.pop("published", days_ago(1)),
+        "veroeffentlichungszeitraum": {"von": days_ago(1)},
+        "eintrittszeitraum": {"von": "2027-01-01"},
+        "stellenlokationen": [
+            {
+                "adresse": {"ort": place, "plz": "40210", "region": "Nordrhein-Westfalen"},
+                "breite": lat,
+                "laenge": lon,
+            }
+        ],
+        "entfernung": "25",
+        "arbeitszeitVollzeit": True,
         **extra,
     }
 
@@ -139,7 +148,7 @@ class FakeJobboerse:
 
 
 def _hit(term: str, item: dict) -> bool:
-    text = f"{item['titel']} {item['beruf']}".lower().replace("-", "")
+    text = f"{item['stellenangebotsTitel']} {item['hauptberuf']}".lower().replace("-", "")
     return any(part in text for part in term.split())
 
 
