@@ -176,6 +176,10 @@ def parse_search_item(item: dict[str, Any], remote: bool) -> Job | None:
         external_url=_first(item, "externeUrl", "externeURL"),
         remote=remote,
     )
+    # v6 sagt je Stelle, ob Homeoffice möglich ist; v4 nur über den Suchfilter
+    home_office = item.get("homeofficemoeglich")
+    if isinstance(home_office, bool):
+        job.remote = home_office
     # v6 rechnet die Entfernung zum Suchort selbst aus
     if not remote:
         job.distance_km = _km(item.get("entfernung"))
@@ -366,6 +370,9 @@ class JobsucheClient:
                 last_error = ShapeError(f"Unbekanntes Trefferformat unter {path}")
                 continue
             self._search_path = path
+            if remote:
+                # Bundesweite Homeoffice-Suche: Stellen ohne Homeoffice sind hier fehl am Platz
+                jobs = [job for job in jobs if job.remote]
             self.hits += len(jobs)
             return jobs
         # Beim nächsten Mal alle Pfade neu probieren

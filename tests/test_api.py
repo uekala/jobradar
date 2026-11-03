@@ -94,6 +94,31 @@ def test_v6_item_as_seen_live() -> None:
     assert job.occupation == "Systemadministrator/in" and job.distance_km == 21
 
 
+async def test_home_office_flag_per_posting(hass, aioclient_mock) -> None:
+    base = {"stellenangebotsTitel": "Admin", "firma": "X"}
+    aioclient_mock.get(
+        f"{BASE_URL}/pc/v6/jobs",
+        json={
+            "ergebnisliste": [
+                {**base, "referenznummer": "a", "homeofficemoeglich": True},
+                {**base, "referenznummer": "b", "homeofficemoeglich": False},
+                {**base, "referenznummer": "c"},
+            ],
+            "maxErgebnisse": 3,
+        },
+    )
+    client = JobsucheClient(async_get_clientsession(hass))
+    local = await client.search(
+        "x", location="Krefeld", radius=50, remote=False, days=2, exclude_temp_agencies=False
+    )
+    assert {j.refnr: j.remote for j in local} == {"a": True, "b": False, "c": False}
+    # Bundesweite Homeoffice-Suche: ausdrücklich ohne Homeoffice fällt heraus
+    remote = await client.search(
+        "x", location=None, radius=None, remote=True, days=2, exclude_temp_agencies=False
+    )
+    assert {j.refnr: j.remote for j in remote} == {"a": True, "c": True}
+
+
 def test_v6_item_with_referenznummer() -> None:
     job = parse_search_item(
         {

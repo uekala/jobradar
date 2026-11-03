@@ -93,6 +93,7 @@ REMOTE_JOBS = [
         52.52,
         13.40,
         beruf="Cloud-Engineer",
+        homeofficemoeglich=True,
     ),
 ]
 DETAILS = {
