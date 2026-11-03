@@ -13,6 +13,7 @@ from typing import Any
 
 import aiohttp
 
+from .pay import grade_from_text, pay_from_item
 from .scoring import Job
 
 _LOGGER = logging.getLogger(__name__)
@@ -176,6 +177,7 @@ def parse_search_item(item: dict[str, Any], remote: bool) -> Job | None:
         external_url=_first(item, "externeUrl", "externeURL"),
         remote=remote,
     )
+    job.pay_low, job.pay_high = pay_from_item(item)
     # v6 sagt je Stelle, ob Homeoffice möglich ist; v4 nur über den Suchfilter
     home_office = item.get("homeofficemoeglich")
     if isinstance(home_office, bool):
@@ -278,14 +280,23 @@ class ShapeError(JobsucheError):
 
 def apply_details(job: Job, data: dict[str, Any]) -> Job:
     """Ergänzt Beschreibung, Vergütung und Arbeitszeit aus der Detailansicht."""
-    job.description = (
-        _text(data.get("stellenangebotsBeschreibung")) or _text(data.get("stellenbeschreibung"))
-    )[:6000]
+    description = _text(data.get("stellenangebotsBeschreibung")) or _text(
+        data.get("stellenbeschreibung")
+    )
+    job.description = description[:6000]
     job.salary = _text(data.get("verguetung"))
+    low, high = pay_from_item(data)
+    if low or high:
+        job.pay_low, job.pay_high = low, high
+    elif not (job.pay_low or job.pay_high):
+        # Die Entgeltgruppe steht oft am Ende der Anzeige, also im vollen Text suchen
+        job.pay_grade, job.pay_scale = grade_from_text(f"{job.title}\n{description}")
     job.limited = _text(data.get("befristung"))
     models = [m for m in data.get("arbeitszeitmodelle") or [] if isinstance(m, str)]
     job.working_time = models
     if any("HEIM" in m.upper() or "TELE" in m.upper() for m in models):
+        job.remote = True
+    if data.get("homeofficemoeglich") is True:
         job.remote = True
     title = _text(data.get("stellenangebotsTitel")) or _text(data.get("titel"))
     if title:

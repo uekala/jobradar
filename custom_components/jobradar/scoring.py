@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass, field
 from datetime import date
 
+from .pay import grade_from_text, pay_label, pay_matches
+
 # Allgemeine Rollenwörter: zusammen mit einer Fähigkeit im Titel zählt das als passende Rolle
 ROLE_WORDS = (
     "administrator",
@@ -31,6 +33,8 @@ POINTS_UNWANTED = -25
 POINTS_REMOTE = 5
 POINTS_NEARBY = 5
 NEARBY_KM = 25
+POINTS_PAY_OK = 5
+POINTS_PAY_LOW = -30
 
 
 def normalize(text: str) -> str:
@@ -64,6 +68,8 @@ class Profile:
     unwanted: tuple[str, ...] = ()
     excluded_words: tuple[str, ...] = ()
     excluded_employers: tuple[str, ...] = ()
+    salary_expectation: int = 0  # Jahresbrutto in Euro, 0 = nicht vergleichen
+    min_pay_grade: int = 0  # Entgeltgruppe TVöD/TV-L, 0 = nicht vergleichen
 
 
 @dataclass
@@ -85,6 +91,11 @@ class Job:
     remote: bool = False
     description: str = ""
     salary: str = ""
+    pay_low: int | None = None
+    pay_high: int | None = None
+    pay_grade: int | None = None
+    pay_scale: str = ""
+    pay_ok: bool | None = None
     working_time: list[str] = field(default_factory=list)
     limited: str = ""
     details_loaded: bool = False
@@ -92,6 +103,11 @@ class Job:
     score: int = 0
     matches: list[str] = field(default_factory=list)
     excluded: str | None = None
+
+    @property
+    def pay(self) -> str:
+        """Gehalt oder Entgeltgruppe, kurz."""
+        return pay_label(self.pay_low, self.pay_high, self.pay_grade, self.pay_scale)
 
     @property
     def url(self) -> str:
@@ -114,6 +130,11 @@ class Job:
             "remote": self.remote,
             "beschreibung": self.description,
             "verguetung": self.salary,
+            "gehalt_von": self.pay_low,
+            "gehalt_bis": self.pay_high,
+            "entgeltgruppe": self.pay_grade,
+            "tarif": self.pay_scale,
+            "gehalt_passt": self.pay_ok,
             "arbeitszeit": self.working_time,
             "befristung": self.limited,
             "details": self.details_loaded,
@@ -141,6 +162,11 @@ class Job:
             remote=bool(data.get("remote")),
             description=data.get("beschreibung", ""),
             salary=data.get("verguetung", ""),
+            pay_low=data.get("gehalt_von"),
+            pay_high=data.get("gehalt_bis"),
+            pay_grade=data.get("entgeltgruppe"),
+            pay_scale=data.get("tarif", ""),
+            pay_ok=data.get("gehalt_passt"),
             working_time=list(data.get("arbeitszeit") or []),
             limited=data.get("befristung", ""),
             details_loaded=bool(data.get("details")),
@@ -196,6 +222,21 @@ def score_job(job: Job, profile: Profile) -> Job:
         points += POINTS_REMOTE
     if job.distance_km is not None and job.distance_km <= NEARBY_KM:
         points += POINTS_NEARBY
+
+    # Gehalt: Betrag aus der Jobbörse, sonst Entgeltgruppe aus Titel oder Text
+    if not (job.pay_low or job.pay_high) and job.pay_grade is None:
+        job.pay_grade, job.pay_scale = grade_from_text(f"{job.title}\n{job.description}")
+    job.pay_ok = pay_matches(
+        job.pay_low,
+        job.pay_high,
+        job.pay_grade,
+        profile.salary_expectation,
+        profile.min_pay_grade,
+    )
+    if job.pay_ok is True:
+        points += POINTS_PAY_OK
+    elif job.pay_ok is False:
+        points += POINTS_PAY_LOW
 
     job.score = max(0, min(100, points))
     job.matches = matches

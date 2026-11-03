@@ -25,11 +25,13 @@ from .const import (
     CONF_EXCLUDED_WORDS,
     CONF_INTERVAL,
     CONF_LOCATION,
+    CONF_MIN_GRADE,
     CONF_MIN_SCORE,
     CONF_NO_TEMP_AGENCIES,
     CONF_NOTIFY,
     CONF_RADIUS,
     CONF_REMOTE,
+    CONF_SALARY,
     CONF_SEARCH_TERMS,
     CONF_SKILLS,
     CONF_UNWANTED,
@@ -91,6 +93,8 @@ def _schema(hass: HomeAssistant, values: dict[str, Any], *, advanced: bool) -> v
         vol.Required(CONF_MIN_SCORE, **default(CONF_MIN_SCORE, DEFAULT_MIN_SCORE)): _number(
             0, 100, 5
         ),
+        vol.Required(CONF_SALARY, **default(CONF_SALARY, 0)): _number(0, 300_000, 1000, "€"),
+        vol.Required(CONF_MIN_GRADE, **default(CONF_MIN_GRADE, 0)): _number(0, 15, 1),
         vol.Required(CONF_NOTIFY, **default(CONF_NOTIFY, _default_notify(hass))): SelectSelector(
             SelectSelectorConfig(options=_notify_options(hass), mode=SelectSelectorMode.DROPDOWN)
         ),
@@ -127,7 +131,7 @@ def _validate(values: dict[str, Any]) -> dict[str, str]:
 def _clean(values: dict[str, Any]) -> dict[str, Any]:
     cleaned = dict(values)
     cleaned[CONF_LOCATION] = str(values.get(CONF_LOCATION, "")).strip()
-    for key in (CONF_RADIUS, CONF_MIN_SCORE, CONF_INTERVAL):
+    for key in (CONF_RADIUS, CONF_MIN_SCORE, CONF_INTERVAL, CONF_SALARY, CONF_MIN_GRADE):
         if key in cleaned:
             cleaned[key] = int(cleaned[key])
     if cleaned.get(CONF_NOTIFY) == NO_NOTIFY:

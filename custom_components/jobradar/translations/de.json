@@ -12,7 +12,9 @@
           "skills": "Deine Fähigkeiten",
           "excluded_employers": "Arbeitgeber ausschließen",
           "min_score": "Mindestpunktzahl für eine Meldung",
-          "notify_service": "Benachrichtigen über"
+          "notify_service": "Benachrichtigen über",
+          "salary_expectation": "Gehaltsvorstellung (brutto pro Jahr)",
+          "min_pay_grade": "Mindest-Entgeltgruppe (TVöD/TV-L)"
         },
         "data_description": {
           "location": "Stadt oder Postleitzahl. Leer lassen für reine Homeoffice-Suche.",
@@ -20,7 +22,9 @@
           "skills": "Treffer im Titel bringen 10 Punkte, in der Beschreibung 5.",
           "excluded_employers": "Teil des Namens genügt, z. B. dein aktueller Arbeitgeber.",
           "min_score": "Passende Rolle im Titel bringt 50 Punkte, Fähigkeiten bis zu 40, Homeoffice und Nähe je 5.",
-          "notify_service": "Bei der Companion-App bekommst du Knöpfe zum Öffnen und Ausblenden."
+          "notify_service": "Bei der Companion-App bekommst du Knöpfe zum Öffnen und Ausblenden.",
+          "salary_expectation": "Stellen mit Gehaltsangabe darunter verlieren 30 Punkte und werden markiert, passende bekommen 5. 0 = nicht vergleichen.",
+          "min_pay_grade": "Für Stellen, die statt Euro eine Entgelt- oder Besoldungsgruppe nennen, z. B. 11 für E11. 0 = nicht vergleichen."
         }
       }
     },
@@ -45,11 +49,15 @@
           "unwanted": "Abwerten bei (je −25 Punkte)",
           "excluded_words": "Ausschließen bei (im Titel)",
           "exclude_temp_agencies": "Zeitarbeit ausschließen",
-          "interval_minutes": "Abfrageintervall"
+          "interval_minutes": "Abfrageintervall",
+          "salary_expectation": "Gehaltsvorstellung (brutto pro Jahr)",
+          "min_pay_grade": "Mindest-Entgeltgruppe (TVöD/TV-L)"
         },
         "data_description": {
           "unwanted": "Zum Beispiel Junior, Helpdesk, Vertrieb.",
-          "excluded_words": "Zum Beispiel Ausbildung, Praktikum, Werkstudent."
+          "excluded_words": "Zum Beispiel Ausbildung, Praktikum, Werkstudent.",
+          "salary_expectation": "Stellen mit Gehaltsangabe darunter verlieren 30 Punkte und werden markiert, passende bekommen 5. 0 = nicht vergleichen.",
+          "min_pay_grade": "Für Stellen, die statt Euro eine Entgelt- oder Besoldungsgruppe nennen, z. B. 11 für E11. 0 = nicht vergleichen."
         }
       }
     },

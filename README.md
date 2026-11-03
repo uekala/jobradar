@@ -29,7 +29,12 @@ Jobradar sucht in Home Assistant regelmäßig nach neuen Stellen in der [Jobbör
 | Mindestpunktzahl | Ab hier wird gemeldet. Vorgabe 50 – das entspricht einer passenden Rolle im Titel. |
 | Benachrichtigen über | Ein `notify`-Dienst, z. B. die Companion-App. Ohne Auswahl erscheint eine Benachrichtigung in Home Assistant. |
 
-In den Optionen lassen sich außerdem Abwertungen (z. B. *Junior, Helpdesk*), Ausschlusswörter, Zeitarbeit und das Abfrageintervall einstellen.
+In den Optionen lassen sich außerdem Abwertungen (z. B. *Junior, Helpdesk*), Ausschlusswörter, Zeitarbeit und das Abfrageintervall einstellen, dazu:
+
+| Option | Bedeutung |
+| --- | --- |
+| Gehaltsvorstellung (brutto pro Jahr) | Etwa jede fünfte Stelle der Jobbörse nennt ein Gehalt, als Spanne oder Festbetrag. Liegt auch das obere Ende darunter, verliert die Stelle 30 Punkte und wird in der Meldung markiert; passt es, gibt es 5 Punkte. 0 = nicht vergleichen. |
+| Mindest-Entgeltgruppe (TVöD/TV-L) | Für Stellen im öffentlichen Dienst, die statt Euro eine Entgelt- oder Besoldungsgruppe nennen (z. B. *E 11 TVöD*, *A 11*). Darunter: wie oben. 0 = nicht vergleichen. |
 
 ### So entstehen die Punkte
 
@@ -40,6 +45,7 @@ In den Optionen lassen sich außerdem Abwertungen (z. B. *Junior, Helpdesk*), Au
 | Homeoffice möglich | 5 |
 | höchstens 25 km Luftlinie entfernt | 5 |
 | je Abwertungswort im Titel | −25 |
+| Gehalt oder Entgeltgruppe passt zur Gehaltsvorstellung / liegt darunter | 5 / −30 |
 
 ## Benachrichtigung
 
@@ -54,7 +60,7 @@ Bei der ersten Suche schickt Jobradar nur eine Meldung mit der Zahl der passende
 
 | | |
 |---|---|
-| `sensor.…_neue_stellen` | Zahl der ungelesenen passenden Stellen; Attribut `stellen` mit Titel, Arbeitgeber, Ort, Entfernung, Punkten, Treffern und Link |
+| `sensor.…_neue_stellen` | Zahl der ungelesenen passenden Stellen; Attribut `stellen` mit Titel, Arbeitgeber, Ort, Entfernung, Gehalt (falls angegeben), Punkten, Treffern und Link |
 | `sensor.…_passende_stellen` | Alle passenden Stellen der letzten 30 Tage |
 | `sensor.…_letzte_suche` | Zeitpunkt und Ergebnis der letzten Suche |
 | `button.…_alle_als_gelesen_markieren`, `button.…_jetzt_suchen` | |

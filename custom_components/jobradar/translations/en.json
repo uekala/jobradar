@@ -12,7 +12,9 @@
           "skills": "Your skills",
           "excluded_employers": "Exclude employers",
           "min_score": "Minimum score for a notification",
-          "notify_service": "Notify via"
+          "notify_service": "Notify via",
+          "salary_expectation": "Salary expectation (gross per year)",
+          "min_pay_grade": "Minimum pay grade (TVöD/TV-L)"
         },
         "data_description": {
           "location": "City or postcode. Leave empty to search remote jobs only.",
@@ -20,7 +22,9 @@
           "skills": "A match in the title is worth 10 points, in the description 5.",
           "excluded_employers": "Part of the name is enough, e.g. your current employer.",
           "min_score": "A matching role in the title is worth 50 points, skills up to 40, remote and proximity 5 each.",
-          "notify_service": "With the companion app you get buttons to open or hide a job."
+          "notify_service": "With the companion app you get buttons to open or hide a job.",
+          "salary_expectation": "Postings with a stated salary below this lose 30 points and are flagged; matching ones gain 5. 0 = do not compare.",
+          "min_pay_grade": "For postings that state a public-sector pay grade instead of an amount, e.g. 11 for E11. 0 = do not compare."
         }
       }
     },
@@ -45,11 +49,15 @@
           "unwanted": "Penalise (−25 points each)",
           "excluded_words": "Exclude if title contains",
           "exclude_temp_agencies": "Exclude temporary staffing agencies",
-          "interval_minutes": "Polling interval"
+          "interval_minutes": "Polling interval",
+          "salary_expectation": "Salary expectation (gross per year)",
+          "min_pay_grade": "Minimum pay grade (TVöD/TV-L)"
         },
         "data_description": {
           "unwanted": "For example Junior, Helpdesk, Sales.",
-          "excluded_words": "For example Ausbildung, Praktikum, Werkstudent."
+          "excluded_words": "For example Ausbildung, Praktikum, Werkstudent.",
+          "salary_expectation": "Postings with a stated salary below this lose 30 points and are flagged; matching ones gain 5. 0 = do not compare.",
+          "min_pay_grade": "For postings that state a public-sector pay grade instead of an amount, e.g. 11 for E11. 0 = do not compare."
         }
       }
     },

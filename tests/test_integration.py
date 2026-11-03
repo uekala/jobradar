@@ -18,10 +18,12 @@ from pytest_homeassistant_custom_component.common import (
 from custom_components.jobradar.const import (
     CONF_EXCLUDED_EMPLOYERS,
     CONF_LOCATION,
+    CONF_MIN_GRADE,
     CONF_MIN_SCORE,
     CONF_NOTIFY,
     CONF_RADIUS,
     CONF_REMOTE,
+    CONF_SALARY,
     CONF_SEARCH_TERMS,
     CONF_SKILLS,
     DOMAIN,
@@ -87,7 +89,7 @@ async def test_first_run_lists_matches_and_sends_one_summary(hass, jobboerse, pu
     admin = listed["Systemadministrator (m/w/d) Linux und VMware"]
     assert admin["treffer"] == ["VMware", "Ansible", "Linux", "Windows Server"]
     assert admin["homeoffice"] is True  # aus der Detailansicht
-    assert admin["verguetung"] == "nach Vereinbarung"
+    assert admin["gehalt"] == "nach Vereinbarung"
     assert 15 < admin["entfernung_km"] < 30
     assert admin["url"].endswith("/jobdetail/10000-0000000001-S")
     assert listed["Cloud Engineer (m/w/d) Kubernetes"]["homeoffice"] is True
@@ -187,6 +189,44 @@ async def test_old_and_duplicate_postings_are_not_reported(hass, jobboerse, push
 
     assert [p.data["title"] for p in pushes] == ["Linux-Administrator (m/w/d)"]
     assert pushes[0].data["message"].startswith("Doppel AG, Neuss")
+
+
+async def test_salary_expectation(hass, jobboerse, pushes) -> None:
+    await _setup(hass, **{CONF_SALARY: 70000, CONF_MIN_GRADE: 11})
+    pushes.clear()
+    pay = {"verguetungsangabe": "JAHRESGEHALT", "artDerVerguetung": "GEHALTSSPANNE"}
+    jobboerse.local += [
+        job(
+            "10000-0000000020-S",
+            "Systemadministrator VMware (m/w/d)",
+            "Gut Zahlend GmbH",
+            "Krefeld",
+            51.34,
+            6.59,
+            **pay,
+            gehaltsspanneVon=65000,
+            gehaltsspanneBis=80000,
+        ),
+        job(
+            "10000-0000000021-S",
+            "Systemadministrator VMware (m/w/d) Rechenzentrum",
+            "Knapp Kasse AG",
+            "Krefeld",
+            51.34,
+            6.59,
+            **pay,
+            gehaltsspanneVon=42000,
+            gehaltsspanneBis=50000,
+        ),
+    ]
+
+    await _next_run(hass)
+
+    assert [p.data["title"] for p in pushes] == ["Systemadministrator VMware (m/w/d)"]
+    assert "65.000–80.000 €" in pushes[0].data["message"]
+    listed = {s["refnr"]: s for s in _state(hass, "matching_jobs").attributes["stellen"]}
+    assert listed["10000-0000000020-S"]["gehalt_passt"] is True
+    assert "10000-0000000021-S" not in listed  # 42–50 T€ kostet 30 Punkte
 
 
 async def test_buttons_and_services(hass, jobboerse, pushes) -> None:

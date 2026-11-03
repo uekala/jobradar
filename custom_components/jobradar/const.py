@@ -18,6 +18,8 @@ CONF_MIN_SCORE = "min_score"
 CONF_NOTIFY = "notify_service"
 CONF_INTERVAL = "interval_minutes"
 CONF_NO_TEMP_AGENCIES = "exclude_temp_agencies"
+CONF_SALARY = "salary_expectation"
+CONF_MIN_GRADE = "min_pay_grade"
 
 DEFAULT_RADIUS = 50
 DEFAULT_MIN_SCORE = 50

@@ -21,11 +21,13 @@ from .const import (
     CONF_EXCLUDED_WORDS,
     CONF_INTERVAL,
     CONF_LOCATION,
+    CONF_MIN_GRADE,
     CONF_MIN_SCORE,
     CONF_NO_TEMP_AGENCIES,
     CONF_NOTIFY,
     CONF_RADIUS,
     CONF_REMOTE,
+    CONF_SALARY,
     CONF_SEARCH_TERMS,
     CONF_SKILLS,
     CONF_UNWANTED,
@@ -90,6 +92,8 @@ def profile_from(conf: dict[str, Any]) -> Profile:
         unwanted=tuple(parse_list(conf.get(CONF_UNWANTED, DEFAULT_UNWANTED))),
         excluded_words=tuple(parse_list(conf.get(CONF_EXCLUDED_WORDS, DEFAULT_EXCLUDED_WORDS))),
         excluded_employers=tuple(parse_list(conf.get(CONF_EXCLUDED_EMPLOYERS, ""))),
+        salary_expectation=int(conf.get(CONF_SALARY) or 0),
+        min_pay_grade=int(conf.get(CONF_MIN_GRADE) or 0),
     )
 
 
@@ -257,6 +261,17 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
             if (published := published_date(job)) is None or published >= cutoff
         }
 
+        # Bekannte Stellen: Gehalt aus der frischen Suche übernehmen und neu bewerten
+        for refnr, fresh in found.items():
+            known_job = self._jobs.get(refnr)
+            if known_job and (fresh.pay_low or fresh.pay_high) and not known_job.pay_low:
+                known_job.pay_low, known_job.pay_high = fresh.pay_low, fresh.pay_high
+        for refnr, known_job in list(self._jobs.items()):
+            score_job(known_job, profile)
+            if known_job.excluded or known_job.score < min_score:
+                self._jobs.pop(refnr)
+                self._unread.discard(refnr)
+
         new = [
             job
             for refnr, job in found.items()
@@ -350,6 +365,10 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
             text += " (Homeoffice möglich)"
         if job.distance_km is not None:
             text += f", {job.distance_km:.0f} km"
+        if job.pay:
+            text += f", {job.pay}"
+            if job.pay_ok is False:
+                text += " (unter deiner Gehaltsvorstellung)"
         text += f". Passt zu {job.score} %"
         if job.matches:
             text += f": {', '.join(job.matches[:4])}"
