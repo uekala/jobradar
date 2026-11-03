@@ -90,7 +90,7 @@ Jobradar sendet nur deine Suchbegriffe, den Ort und den Umkreis an die Jobbörse
 
 ## Grenzen
 
-- Jobradar kennt die Jobbörse der Bundesagentur und service.bund.de. Dort stehen sehr viele, aber nicht alle Stellen – manche gibt es nur bei StepStone, LinkedIn, Interamt oder auf Karriereseiten. Diese Börsen bieten keine offene Schnittstelle an, und ihre Nutzungsbedingungen untersagen das automatische Auslesen; Jobradar fragt sie deshalb nicht ab.
+- Jobradar kennt die Jobbörse der Bundesagentur und service.bund.de. Dort stehen sehr viele, aber nicht alle Stellen – manche gibt es nur bei StepStone, LinkedIn, Interamt oder auf Karriereseiten. Diese Börsen bieten weder offene Schnittstelle noch Feed an, und Indeed und LinkedIn untersagen das automatische Auslesen ausdrücklich; Jobradar fragt sie deshalb nicht ab.
 - Bei Stellen von service.bund.de gibt es keine Detailansicht; bewertet wird der Titel, die Entfernung entfällt.
 - Die Schnittstelle ist öffentlich, aber nicht offiziell dokumentiert ([Community-Dokumentation](https://jobsuche.api.bund.dev/)). Jobradar probiert bekannte Pfade nacheinander und bewertet nur den Titel, wenn die Detailansicht fehlt.
 - Entfernungen sind Luftlinie vom Standort deines Home Assistant.
