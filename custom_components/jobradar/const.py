@@ -20,6 +20,7 @@ CONF_INTERVAL = "interval_minutes"
 CONF_NO_TEMP_AGENCIES = "exclude_temp_agencies"
 CONF_SALARY = "salary_expectation"
 CONF_MIN_GRADE = "min_pay_grade"
+CONF_BUND = "include_bund"
 
 DEFAULT_RADIUS = 50
 DEFAULT_MIN_SCORE = 50
@@ -52,6 +53,9 @@ MAX_LISTED = 30
 EVENT_NEW_JOB = "jobradar_new_job"
 ACTION_HIDE = "JOBRADAR_HIDE::"
 NOTIFICATION_ID = "jobradar"
+
+# service.bund.de: je Suchbegriff eine Abfrage, höchstens so oft
+BUND_INTERVAL = timedelta(hours=2)
 
 STORAGE_VERSION = 1
 UPDATE_TIMEOUT = timedelta(minutes=5)

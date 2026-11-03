@@ -15,8 +15,11 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .api import JobsucheClient, JobsucheError
+from .bund import BundClient, BundError
 from .const import (
     ACTION_HIDE,
+    BUND_INTERVAL,
+    CONF_BUND,
     CONF_EXCLUDED_EMPLOYERS,
     CONF_EXCLUDED_WORDS,
     CONF_INTERVAL,
@@ -116,7 +119,10 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
             name=DOMAIN,
             update_interval=timedelta(minutes=interval),
         )
-        self.client = JobsucheClient(async_get_clientsession(hass))
+        session = async_get_clientsession(hass)
+        self.client = JobsucheClient(session)
+        self.bund = BundClient(session)
+        self._bund_last: datetime | None = None
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}"
         )
@@ -238,7 +244,32 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
                         found[job.refnr].remote |= job.remote
                     else:
                         found[job.refnr] = job
+        await self._async_search_bund(found, location, radius)
         return found, queries, errors
+
+    def _bund_due(self) -> bool:
+        if not self._initialized or self._bund_last is None:
+            return True
+        return dt_util.utcnow() - self._bund_last >= BUND_INTERVAL
+
+    async def _async_search_bund(self, found: dict[str, Job], location: str, radius: int) -> None:
+        """service.bund.de: öffentlicher Dienst, im selben Umkreis wie die Jobbörse."""
+        if not self.conf.get(CONF_BUND, True) or not location or not self._bund_due():
+            return
+        self._bund_last = dt_util.utcnow()
+        terms = self.profile.search_terms
+        failed = 0
+        for term in terms:
+            try:
+                jobs = await self.bund.search(term, location=location, radius=radius or None)
+            except BundError as err:
+                failed += 1
+                _LOGGER.debug("bund.de: Suche nach %s fehlgeschlagen: %s", term, err)
+                continue
+            for job in jobs:
+                found.setdefault(job.refnr, job)
+        if terms and failed == len(terms):
+            _LOGGER.warning("service.bund.de ist gerade nicht erreichbar: %s", self.bund.last_error)
 
     async def _async_update_data(self) -> Snapshot:
         first_run = not self._initialized
@@ -290,6 +321,8 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
         if found and not new:
             _LOGGER.debug("%s Treffer, alle schon bekannt", len(found))
         for job in promising:
+            if not job.from_jobboerse:
+                continue  # Detailansicht gibt es nur bei der Jobbörse
             if await self.client.load_details(job):
                 if job.distance_km is None:
                     self._set_distance(job)
@@ -371,10 +404,16 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
             text += f", {job.pay}"
             if job.pay_ok is False:
                 text += " (unter deiner Gehaltsvorstellung)"
+        if job.deadline:
+            year, month, day = job.deadline.split("-")
+            text += f", Bewerbung bis {day}.{month}.{year}"
         text += f". Passt zu {job.score} %"
         if job.matches:
             text += f": {', '.join(job.matches[:4])}"
-        return text + "."
+        text += "."
+        if job.source:
+            text += f" Quelle: {job.source}."
+        return text
 
     async def _async_announce(self, matched: list[Job]) -> None:
         for job in matched[:MAX_PUSHES_PER_RUN]:

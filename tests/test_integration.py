@@ -16,6 +16,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 
 from custom_components.jobradar.const import (
+    CONF_BUND,
     CONF_EXCLUDED_EMPLOYERS,
     CONF_LOCATION,
     CONF_MIN_GRADE,
@@ -30,7 +31,7 @@ from custom_components.jobradar.const import (
     EVENT_NEW_JOB,
 )
 
-from .conftest import days_ago, job
+from .conftest import bund_item, days_ago, job
 
 BASE = {
     CONF_LOCATION: "Krefeld",
@@ -255,6 +256,55 @@ async def test_salary_reaches_older_stored_jobs(hass, jobboerse, pushes) -> None
 
     listed = {s["refnr"] for s in _state(hass, "matching_jobs").attributes["stellen"]}
     assert "10000-0000000022-S" not in listed
+
+
+async def test_bund_de_postings(hass, jobboerse, pushes, freezer) -> None:
+    jobboerse.bund.append(
+        bund_item(
+            6683770, "IT-Systemadministrator (m/w/d) VMware", "Bundesamt Muster", "47798 Krefeld"
+        )
+    )
+    # Dieselbe Stelle steht auch in der Jobbörse: nur einmal melden
+    jobboerse.bund.append(
+        bund_item(
+            6683771,
+            "Systemadministrator (m/w/d) Linux und VMware",
+            "Muster IT GmbH",
+            "40210 Düsseldorf",
+        )
+    )
+    await _setup(hass)
+
+    first = jobboerse.bund_calls[0]
+    assert first["city_zipcode"] == "Krefeld" and first["ambit_distance"] == "50"
+    listed = {s["titel"]: s for s in _state(hass, "matching_jobs").attributes["stellen"]}
+    bund = listed["IT-Systemadministrator (m/w/d) VMware"]
+    assert bund["quelle"] == "bund.de" and bund["bewerbungsfrist"] == "2026-11-30"
+    assert bund["url"].startswith("https://www.service.bund.de/")
+    titles = [s["titel"] for s in _state(hass, "matching_jobs").attributes["stellen"]]
+    assert titles.count("Systemadministrator (m/w/d) Linux und VMware") == 1
+
+    # bund.de wird höchstens alle zwei Stunden gefragt
+    calls = len(jobboerse.bund_calls)
+    pushes.clear()
+    jobboerse.bund.append(
+        bund_item(6683800, "Linux-Administrator (m/w/d)", "Landesamt Muster", "41460 Neuss")
+    )
+    await _next_run(hass)
+    assert len(jobboerse.bund_calls) == calls and pushes == []
+
+    freezer.tick(timedelta(hours=2, minutes=5))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert [p.data["title"] for p in pushes] == ["Linux-Administrator (m/w/d)"]
+    message = pushes[0].data["message"]
+    assert "Bewerbung bis 30.11.2026" in message and message.endswith("Quelle: bund.de.")
+    assert pushes[0].data["data"]["url"].endswith("/6683800.html")
+
+
+async def test_bund_de_can_be_switched_off(hass, jobboerse, pushes) -> None:
+    await _setup(hass, **{CONF_BUND: False})
+    assert jobboerse.bund_calls == []
 
 
 async def test_buttons_and_services(hass, jobboerse, pushes) -> None:

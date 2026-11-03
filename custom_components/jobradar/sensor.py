@@ -66,6 +66,8 @@ def _listing(coordinator: JobradarCoordinator, only_unread: bool) -> list[dict[s
             "veroeffentlicht": j.published,
             "gehalt": j.pay or j.salary or None,
             "gehalt_passt": j.pay_ok,
+            "bewerbungsfrist": j.deadline or None,
+            "quelle": j.source or "Bundesagentur",
             "neu": j.refnr in data.unread,
             "refnr": j.refnr,
             "url": j.url,

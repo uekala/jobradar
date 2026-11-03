@@ -98,6 +98,9 @@ class Job:
     pay_ok: bool | None = None
     working_time: list[str] = field(default_factory=list)
     limited: str = ""
+    source: str = ""  # leer = Jobbörse der Bundesagentur
+    link: str = ""  # eigene Adresse der Anzeige bei anderen Quellen
+    deadline: str = ""  # Bewerbungsfrist, ISO-Datum
     details_loaded: bool = False
     distance_km: float | None = None
     score: int = 0
@@ -111,7 +114,13 @@ class Job:
 
     @property
     def url(self) -> str:
+        if self.link:
+            return self.link
         return f"https://www.arbeitsagentur.de/jobsuche/jobdetail/{self.refnr}"
+
+    @property
+    def from_jobboerse(self) -> bool:
+        return not self.source
 
     def as_dict(self) -> dict:
         return {
@@ -137,6 +146,9 @@ class Job:
             "gehalt_passt": self.pay_ok,
             "arbeitszeit": self.working_time,
             "befristung": self.limited,
+            "quelle": self.source,
+            "link": self.link,
+            "bewerbungsfrist": self.deadline,
             "details": self.details_loaded,
             "entfernung_km": self.distance_km,
             "punkte": self.score,
@@ -169,6 +181,9 @@ class Job:
             pay_ok=data.get("gehalt_passt"),
             working_time=list(data.get("arbeitszeit") or []),
             limited=data.get("befristung", ""),
+            source=data.get("quelle", ""),
+            link=data.get("link", ""),
+            deadline=data.get("bewerbungsfrist", ""),
             details_loaded=bool(data.get("details")),
             distance_km=data.get("entfernung_km"),
             score=int(data.get("punkte", 0)),

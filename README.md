@@ -1,10 +1,11 @@
 # Jobradar
 
-Jobradar sucht in Home Assistant regelmäßig nach neuen Stellen in der [Jobbörse der Bundesagentur für Arbeit](https://www.arbeitsagentur.de/jobsuche/), bewertet sie nach deinem Profil und meldet passende sofort aufs Handy – mit Knöpfen zum Öffnen und Ausblenden.
+Jobradar sucht in Home Assistant regelmäßig nach neuen Stellen in der [Jobbörse der Bundesagentur für Arbeit](https://www.arbeitsagentur.de/jobsuche/) und bei [service.bund.de](https://www.service.bund.de/Content/DE/Stellen/Suche/Formular.html) (öffentlicher Dienst von Bund, Ländern und Kommunen), bewertet sie nach deinem Profil und meldet passende sofort aufs Handy – mit Knöpfen zum Öffnen und Ausblenden.
 
 ## Was es macht
 
 - **Sucht** alle 30 Minuten (einstellbar) nach jedem deiner Suchbegriffe: im Umkreis deines Orts und auf Wunsch zusätzlich nach Homeoffice-Stellen in ganz Deutschland.
+- **Fragt service.bund.de** höchstens alle zwei Stunden über den RSS-Feed, den die Seite für jede Stellensuche anbietet, im selben Umkreis. Dieselbe Stelle aus beiden Quellen wird nur einmal gemeldet; die Meldung nennt die Bewerbungsfrist.
 - **Bewertet** jede neue Stelle mit 0 bis 100 Punkten: passende Rolle im Titel, deine Fähigkeiten in Titel und Beschreibung, Homeoffice und Nähe.
 - **Filtert** Ausbildung, Praktika, Werkstudentenstellen, Zeitarbeit und Arbeitgeber, die du ausschließt – zum Beispiel deinen jetzigen.
 - **Meldet** neue Stellen ab einer Mindestpunktzahl einzeln, höchstens fünf pro Suche; der Rest kommt als Sammelmeldung.
@@ -85,11 +86,12 @@ Die Entitäts-ID richtet sich nach dem Namen des Eintrags (hier *Jobradar Krefel
 
 ## Datenschutz
 
-Jobradar sendet nur deine Suchbegriffe, den Ort und den Umkreis an die Jobbörse der Bundesagentur. Profil, Fähigkeiten, ausgeschlossene Arbeitgeber und alle gefundenen Stellen bleiben in deinem Home Assistant. Die Diagnose blendet die Arbeitgeberliste aus.
+Jobradar sendet nur deine Suchbegriffe, den Ort und den Umkreis an die Jobbörse der Bundesagentur und an service.bund.de. Profil, Fähigkeiten, ausgeschlossene Arbeitgeber und alle gefundenen Stellen bleiben in deinem Home Assistant. Die Diagnose blendet die Arbeitgeberliste aus.
 
 ## Grenzen
 
-- Jobradar kennt nur die Jobbörse der Bundesagentur. Dort stehen sehr viele, aber nicht alle Stellen – manche gibt es nur bei StepStone, LinkedIn oder auf Karriereseiten.
+- Jobradar kennt die Jobbörse der Bundesagentur und service.bund.de. Dort stehen sehr viele, aber nicht alle Stellen – manche gibt es nur bei StepStone, LinkedIn, Interamt oder auf Karriereseiten. Diese Börsen bieten keine offene Schnittstelle an, und ihre Nutzungsbedingungen untersagen das automatische Auslesen; Jobradar fragt sie deshalb nicht ab.
+- Bei Stellen von service.bund.de gibt es keine Detailansicht; bewertet wird der Titel, die Entfernung entfällt.
 - Die Schnittstelle ist öffentlich, aber nicht offiziell dokumentiert ([Community-Dokumentation](https://jobsuche.api.bund.dev/)). Jobradar probiert bekannte Pfade nacheinander und bewertet nur den Titel, wenn die Detailansicht fehlt.
 - Entfernungen sind Luftlinie vom Standort deines Home Assistant.
 

@@ -21,6 +21,7 @@ from homeassistant.helpers.selector import (
 )
 
 from .const import (
+    CONF_BUND,
     CONF_EXCLUDED_EMPLOYERS,
     CONF_EXCLUDED_WORDS,
     CONF_INTERVAL,
@@ -85,6 +86,7 @@ def _schema(hass: HomeAssistant, values: dict[str, Any], *, advanced: bool) -> v
         vol.Required(CONF_LOCATION, **default(CONF_LOCATION, "")): str,
         vol.Required(CONF_RADIUS, **default(CONF_RADIUS, DEFAULT_RADIUS)): _number(0, 200, 5, "km"),
         vol.Required(CONF_REMOTE, **default(CONF_REMOTE, True)): BooleanSelector(),
+        vol.Required(CONF_BUND, **default(CONF_BUND, True)): BooleanSelector(),
         vol.Required(
             CONF_SEARCH_TERMS, **default(CONF_SEARCH_TERMS, DEFAULT_SEARCH_TERMS)
         ): _multiline(),

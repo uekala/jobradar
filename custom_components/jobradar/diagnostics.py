@@ -37,4 +37,10 @@ async def async_get_config_entry_diagnostics(
         "response_shapes": client.shapes,
         "pay_samples": client.pay_samples,
         "detail_shape": client.detail_shape,
+        "bund": {
+            "requests": coordinator.bund.requests,
+            "hits": coordinator.bund.hits,
+            "errors": coordinator.bund.errors,
+            "last_error": coordinator.bund.last_error,
+        },
     }

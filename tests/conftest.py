@@ -5,7 +5,8 @@ from __future__ import annotations
 import base64
 import re
 from collections.abc import Callable
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
+from email.utils import format_datetime
 from http import HTTPStatus
 from typing import Any
 
@@ -13,6 +14,7 @@ import pytest
 from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMockResponse
 
 from custom_components.jobradar.api import BASE_URL
+from custom_components.jobradar.bund import FEED_URL
 
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 
@@ -109,6 +111,41 @@ DETAILS = {
 }
 
 
+def bund_item(nr: int, title: str, employer: str, place: str, **extra: Any) -> dict:
+    """Ein Eintrag im RSS-Feed von service.bund.de."""
+    return {
+        "nr": nr,
+        "title": title,
+        "employer": employer,
+        "place": place,
+        "published": extra.get("published", days_ago(1)),
+        "deadline": extra.get("deadline", "30.11.2026 23:59"),
+    }
+
+
+def bund_feed(items: list[dict]) -> str:
+    entries = []
+    for item in items:
+        when = datetime.fromisoformat(item["published"]).replace(hour=14, tzinfo=UTC)
+        link = (
+            "https://www.service.bund.de/IMPORTE/Stellenangebote/editor/Muster/2026/11/"
+            f"{item['nr']}.html"
+        )
+        entries.append(
+            f"""<item><title>{item["title"]}</title><link>{link}#track=feed-jobs</link>
+<description><![CDATA[<strong>Arbeitgeber:</strong> {item["employer"]}<br /><strong>Ort:</strong>
+ {item["place"]}<br /><strong>Bewerbungsfrist:</strong> {item["deadline"]}<br />
+<strong>Veröffentlichungsende:</strong> {item["deadline"]}]]></description>
+<pubDate>{format_datetime(when)}</pubDate><guid>{link}</guid></item>"""
+        )
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel>'
+        "<title>Stellenangebote</title><link>https://www.service.bund.de</link>"
+        + "".join(entries)
+        + "</channel></rss>"
+    )
+
+
 class FakeJobboerse:
     """Liefert Suchtreffer je nach Parametern und zählt Anfragen."""
 
@@ -118,11 +155,21 @@ class FakeJobboerse:
         self.details = dict(DETAILS)
         self.fail = False
         self.search_calls: list[dict[str, str]] = []
+        self.bund: list[dict] = []
+        self.bund_calls: list[dict[str, str]] = []
 
     def register(self, aioclient_mock) -> None:
         aioclient_mock.get(f"{BASE_URL}/pc/v6/jobs", side_effect=self._search)
         aioclient_mock.get(re.compile(r"/pc/v4/jobdetails/"), side_effect=self._details)
         aioclient_mock.get(re.compile(r"/pc/v3/jobdetails/"), status=HTTPStatus.NOT_FOUND)
+        aioclient_mock.get(re.compile(re.escape(FEED_URL)), side_effect=self._bund_feed)
+
+    async def _bund_feed(self, method, url, data) -> AiohttpClientMockResponse:
+        query = dict(url.query)
+        self.bund_calls.append(query)
+        term = query.get("templateQueryString", "").lower().replace("-", "")
+        hits = [i for i in self.bund if term in i["title"].lower().replace("-", "")]
+        return AiohttpClientMockResponse(method, url, text=bund_feed(hits))
 
     async def _search(self, method, url, data) -> AiohttpClientMockResponse:
         query = dict(url.query)
