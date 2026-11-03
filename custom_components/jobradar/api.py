@@ -344,6 +344,28 @@ class JobsucheClient:
                 raise HttpStatusError(response.status, path)
             return await response.json(content_type=None)
 
+    async def geocode(self, place: str) -> tuple[float, float] | None:
+        """Koordinaten eines Orts oder einer Postleitzahl.
+
+        Die Suche gibt in woOutput.koordinaten zurück, wo sie den Suchort verortet hat.
+        """
+        path = self._search_path or SEARCH_PATHS[0]
+        params = {"wo": place, "umkreis": 0, "angebotsart": 1, "page": 1, "size": 1}
+        try:
+            data = await self._get(path, params)
+        except (JobsucheError, aiohttp.ClientError, TimeoutError):
+            return None
+        await asyncio.sleep(PAUSE)
+        where = data.get("woOutput") if isinstance(data, dict) else None
+        coords = where.get("koordinaten") if isinstance(where, dict) else None
+        if isinstance(coords, list):
+            coords = coords[0] if coords else None
+        if not isinstance(coords, dict):
+            return None
+        lat = _coord(coords, "lat", "breite")
+        lon = _coord(coords, "lon", "laenge")
+        return (lat, lon) if lat is not None and lon is not None else None
+
     async def search(
         self,
         term: str,

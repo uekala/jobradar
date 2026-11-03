@@ -19,6 +19,13 @@ from custom_components.jobradar.bund import FEED_URL
 pytest_plugins = ["pytest_homeassistant_custom_component"]
 
 KREFELD = (51.3388, 6.5853)
+# Postleitzahl → Koordinaten, wie die Jobbörse sie in woOutput zurückgibt
+GEO = {
+    "47798": (51.33, 6.56),
+    "40210": (51.22, 6.78),
+    "41460": (51.20, 6.69),
+    "10115": (52.53, 13.38),
+}
 
 
 def days_ago(days: int) -> str:
@@ -156,6 +163,7 @@ class FakeJobboerse:
         self.fail = False
         self.search_calls: list[dict[str, str]] = []
         self.bund: list[dict] = []
+        self.bund_location_works = False
         self.bund_calls: list[dict[str, str]] = []
 
     def register(self, aioclient_mock) -> None:
@@ -169,6 +177,9 @@ class FakeJobboerse:
         self.bund_calls.append(query)
         term = query.get("templateQueryString", "").lower().replace("-", "")
         hits = [i for i in self.bund if term in i["title"].lower().replace("-", "")]
+        # Wie der echte Feed: mit Ortsfilter kommt nichts zurück
+        if query.get("city_zipcode") and not self.bund_location_works:
+            hits = []
         return AiohttpClientMockResponse(method, url, text=bund_feed(hits))
 
     async def _search(self, method, url, data) -> AiohttpClientMockResponse:
@@ -185,6 +196,10 @@ class FakeJobboerse:
             body["ergebnisliste"] = hits
         if query.get("wo"):
             body["woOutput"] = {"ort": query["wo"]}
+            postcode = query["wo"].split()[0]
+            if postcode in GEO:
+                lat, lon = GEO[postcode]
+                body["woOutput"]["koordinaten"] = {"lat": lat, "lon": lon}
         return AiohttpClientMockResponse(method, url, json=body)
 
     async def _details(self, method, url, data) -> AiohttpClientMockResponse:

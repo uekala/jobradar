@@ -36,14 +36,7 @@ class BundError(Exception):
     """service.bund.de war nicht erreichbar oder antwortete unerwartet."""
 
 
-# Wie der Ort übergeben wird. service.bund.de dokumentiert das nicht; der erste
-# Lauf probiert die Varianten und nimmt die, die Treffer liefert.
-MODES = ("radius", "radius_result", "place", "region")
-
-
-def feed_params(
-    term: str, location: str | None, radius: int | None, mode: str = "radius"
-) -> dict[str, str]:
+def feed_params(term: str, place: str | None, radius: int | None) -> dict[str, str]:
     """Parameter der Stellensuche, wie der Link "Suchergebnis als RSS-Feed" sie setzt."""
     params = {
         "nn": "4642046",
@@ -53,17 +46,10 @@ def feed_params(
         "sortOrder": "dateOfIssue_dt desc",
         "jobsrss": "true",
     }
-    if not location:
-        return params
-    if mode == "region":
-        # Ort als Suchwort statt als Ortsfilter
-        params["templateQueryString"] = f"{term} {location}"
-        return params
-    params["city_zipcode"] = location
-    if radius and mode in ("radius", "radius_result"):
-        params["ambit_distance"] = str(radius)
-    if mode == "radius_result":
-        params["searchResult"] = "true"
+    if place:
+        params["city_zipcode"] = place
+        if radius:
+            params["ambit_distance"] = str(radius)
     return params
 
 
@@ -147,35 +133,38 @@ class BundClient:
         self.errors = 0
         self.last_error = ""
         self.last_response: dict[str, object] = {}
-        self.mode = "radius"
+        # Wie service.bund.de den Ort annimmt; das dokumentiert die Seite nicht.
+        # Ohne funktionierenden Ortsfilter sucht Jobradar bundesweit und filtert selbst.
+        self.place: str | None = None
+        self.nationwide = False
         self.probe: dict[str, int | str] = {}
 
-    async def async_probe(self, term: str, *, location: str, radius: int | None) -> None:
-        """Findet heraus, wie service.bund.de den Ort annimmt (einmal pro Start)."""
+    async def async_probe(self, term: str, variants: dict[str, str], radius: int | None) -> None:
+        """Probiert einmal pro Start, welche Ortsangabe Treffer liefert."""
         counts: dict[str, int | str] = {}
-        for mode in MODES:
+        for name, place in variants.items():
             try:
-                counts[mode] = len(
-                    await self.search(term, location=location, radius=radius, mode=mode)
-                )
+                counts[name] = len(await self.search(term, place=place, radius=radius))
             except BundError as err:
-                counts[mode] = f"Fehler: {err}"
+                counts[name] = f"Fehler: {err}"
         try:
-            counts["bundesweit"] = len(await self.search(term, location=None, radius=None))
+            counts["bundesweit"] = len(await self.search(term, place=None, radius=None))
         except BundError as err:
             counts["bundesweit"] = f"Fehler: {err}"
         self.probe = counts
-        working = [m for m in MODES if isinstance(counts.get(m), int) and counts[m]]
-        self.mode = working[0] if working else "radius"
+        for name, place in variants.items():
+            if isinstance(counts.get(name), int) and counts[name]:
+                self.place, self.nationwide = place, False
+                return
+        # Kein Ortsfilter liefert etwas: bundesweit suchen und selbst nach Entfernung filtern
+        self.place, self.nationwide = None, True
 
-    async def search(
-        self, term: str, *, location: str | None, radius: int | None, mode: str | None = None
-    ) -> list[Job]:
+    async def search(self, term: str, *, place: str | None, radius: int | None) -> list[Job]:
         self.requests += 1
         try:
             async with self._session.get(
                 FEED_URL,
-                params=feed_params(term, location, radius, mode or self.mode),
+                params=feed_params(term, place, radius),
                 headers=HEADERS,
                 timeout=TIMEOUT,
             ) as response:

@@ -123,6 +123,7 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
         self.client = JobsucheClient(session)
         self.bund = BundClient(session)
         self._bund_last: datetime | None = None
+        self._geo: dict[str, list[float] | None] = {}
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}"
         )
@@ -150,6 +151,7 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
         self._initialized = bool(stored.get("initialized"))
         self._seen = dict(stored.get("seen") or {})
         self._hidden = set(stored.get("hidden") or [])
+        self._geo = dict(stored.get("geo") or {})
         self._unread = set(stored.get("unread") or [])
         self._jobs = {}
         profile, min_score = self.profile, self.min_score
@@ -169,6 +171,7 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
                 "initialized": self._initialized,
                 "seen": self._seen,
                 "hidden": sorted(self._hidden),
+                "geo": self._geo,
                 "unread": sorted(self._unread & set(self._jobs)),
                 "jobs": [job.as_dict() for job in self._jobs.values()],
             }
@@ -259,19 +262,68 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
         self._bund_last = dt_util.utcnow()
         terms = self.profile.search_terms
         if not self.bund.probe and terms:
-            await self.bund.async_probe(terms[0], location=location, radius=radius or None)
+            await self.bund.async_probe(terms[0], self._place_variants(found, location), radius)
         failed = 0
         for term in terms:
             try:
-                jobs = await self.bund.search(term, location=location, radius=radius or None)
+                jobs = await self.bund.search(
+                    term,
+                    place=None if self.bund.nationwide else self.bund.place,
+                    radius=None if self.bund.nationwide else radius or None,
+                )
             except BundError as err:
                 failed += 1
                 _LOGGER.debug("bund.de: Suche nach %s fehlgeschlagen: %s", term, err)
                 continue
             for job in jobs:
-                found.setdefault(job.refnr, job)
+                if job.refnr in found or job.refnr in self._seen:
+                    continue
+                if self.bund.nationwide and not await self._async_nearby(job, radius):
+                    continue
+                found[job.refnr] = job
         if terms and failed == len(terms):
             _LOGGER.warning("service.bund.de ist gerade nicht erreichbar: %s", self.bund.last_error)
+
+    @staticmethod
+    def _place_variants(found: dict[str, Job], location: str) -> dict[str, str]:
+        """Ortsangaben zum Ausprobieren, z. B. "47798 Krefeld", "47798", "Krefeld"."""
+        wanted = normalize(location)
+        postcode = next(
+            (
+                job.postcode
+                for job in found.values()
+                if job.postcode and job.from_jobboerse and normalize(job.place) == wanted
+            ),
+            "",
+        )
+        variants: dict[str, str] = {}
+        if postcode:
+            variants["plz_ort"] = f"{postcode} {location}"
+            variants["plz"] = postcode
+        variants["ort"] = location
+        return variants
+
+    async def _async_nearby(self, job: Job, radius: int) -> bool:
+        """Für die bundesweite Suche: liegt die Stelle im Umkreis?"""
+        if not radius:
+            return True
+        # Nur Stellen verorten, deren Titel überhaupt passt; das spart Abfragen
+        score_job(job, self.profile)
+        if job.excluded or job.score < self.min_score - 20:
+            return False
+        key = job.postcode or normalize(job.place)
+        if not key:
+            return False
+        if key not in self._geo:
+            coords = await self.client.geocode(f"{job.postcode} {job.place}".strip())
+            self._geo[key] = list(coords) if coords else None
+        coords = self._geo[key]
+        if not coords:
+            return False
+        job.lat, job.lon = coords
+        home = (self.hass.config.latitude, self.hass.config.longitude)
+        job.distance_km = round(distance_km(home[0], home[1], job.lat, job.lon), 1)
+        return job.distance_km <= radius
 
     async def _async_update_data(self) -> Snapshot:
         first_run = not self._initialized

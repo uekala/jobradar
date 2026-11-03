@@ -61,11 +61,3 @@ def test_feed_params_match_the_rss_link() -> None:
     assert params["city_zipcode"] == "Krefeld" and params["ambit_distance"] == "50"
     assert params["sortOrder"] == "dateOfIssue_dt desc"
     assert "city_zipcode" not in feed_params("VMware", None, None)
-
-
-def test_location_modes() -> None:
-    assert "searchResult" in feed_params("x", "Krefeld", 50, "radius_result")
-    place = feed_params("x", "Krefeld", 50, "place")
-    assert place["city_zipcode"] == "Krefeld" and "ambit_distance" not in place
-    region = feed_params("x", "Krefeld", 50, "region")
-    assert region["templateQueryString"] == "x Krefeld" and "city_zipcode" not in region

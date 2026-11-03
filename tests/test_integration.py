@@ -273,13 +273,25 @@ async def test_bund_de_postings(hass, jobboerse, pushes, freezer) -> None:
             "40210 Düsseldorf",
         )
     )
+    # Weit weg und ohne Homeoffice: fällt bei der bundesweiten Suche heraus
+    jobboerse.bund.append(
+        bund_item(
+            6683772, "IT-Administrator (m/w/d) Rechenzentrum", "Bundesamt Fern", "10115 Berlin"
+        )
+    )
     await _setup(hass)
 
-    first = jobboerse.bund_calls[0]
-    assert first["city_zipcode"] == "Krefeld" and first["ambit_distance"] == "50"
+    # Probe: "PLZ Ort" (PLZ aus einem Jobbörsen-Treffer in Krefeld), "PLZ", "Ort", bundesweit
+    probe = [c.get("city_zipcode") for c in jobboerse.bund_calls[:4]]
+    assert probe == ["40210 Krefeld", "40210", "Krefeld", None]
+    assert jobboerse.bund_calls[0]["ambit_distance"] == "50"
+    # Kein Ortsfilter liefert etwas: bundesweit gesucht, selbst nach Entfernung gefiltert
+    assert all("city_zipcode" not in c for c in jobboerse.bund_calls[4:])
     listed = {s["titel"]: s for s in _state(hass, "matching_jobs").attributes["stellen"]}
     bund = listed["IT-Systemadministrator (m/w/d) VMware"]
     assert bund["quelle"] == "bund.de" and bund["bewerbungsfrist"] == "2026-11-30"
+    assert bund["entfernung_km"] is not None and bund["entfernung_km"] < 5
+    assert "IT-Administrator (m/w/d) Rechenzentrum" not in listed
     assert bund["url"].startswith("https://www.service.bund.de/")
     titles = [s["titel"] for s in _state(hass, "matching_jobs").attributes["stellen"]]
     assert titles.count("Systemadministrator (m/w/d) Linux und VMware") == 1
@@ -300,6 +312,18 @@ async def test_bund_de_postings(hass, jobboerse, pushes, freezer) -> None:
     message = pushes[0].data["message"]
     assert "Bewerbung bis 30.11.2026" in message and message.endswith("Quelle: bund.de.")
     assert pushes[0].data["data"]["url"].endswith("/6683800.html")
+
+
+async def test_bund_de_location_filter_when_it_works(hass, jobboerse, pushes) -> None:
+    jobboerse.bund_location_works = True
+    jobboerse.bund.append(
+        bund_item(6683790, "Systemadministrator (m/w/d) Netze", "Landesamt Nah", "41460 Neuss")
+    )
+    await _setup(hass)
+    later = jobboerse.bund_calls[4:]
+    assert later and all(c.get("city_zipcode") == "40210 Krefeld" for c in later)
+    titles = [s["titel"] for s in _state(hass, "matching_jobs").attributes["stellen"]]
+    assert "Systemadministrator (m/w/d) Netze" in titles
 
 
 async def test_bund_de_can_be_switched_off(hass, jobboerse, pushes) -> None:
