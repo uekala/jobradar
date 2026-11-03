@@ -1,0 +1,112 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Suchprofil anlegen",
+        "description": "Jobradar fragt die Jobbörse der Bundesagentur für Arbeit regelmäßig ab und meldet neue Stellen, die zu deinem Profil passen. Listen trennst du mit Komma oder Zeilenumbruch.",
+        "data": {
+          "location": "Ort",
+          "radius": "Umkreis",
+          "include_remote": "Homeoffice-Stellen bundesweit einbeziehen",
+          "search_terms": "Suchbegriffe (Berufe und Themen)",
+          "skills": "Deine Fähigkeiten",
+          "excluded_employers": "Arbeitgeber ausschließen",
+          "min_score": "Mindestpunktzahl für eine Meldung",
+          "notify_service": "Benachrichtigen über"
+        },
+        "data_description": {
+          "location": "Stadt oder Postleitzahl. Leer lassen für reine Homeoffice-Suche.",
+          "search_terms": "Jeder Begriff ist eine eigene Suche, z. B. Systemadministrator, VMware, Cloud Engineer.",
+          "skills": "Treffer im Titel bringen 10 Punkte, in der Beschreibung 5.",
+          "excluded_employers": "Teil des Namens genügt, z. B. dein aktueller Arbeitgeber.",
+          "min_score": "Passende Rolle im Titel bringt 50 Punkte, Fähigkeiten bis zu 40, Homeoffice und Nähe je 5.",
+          "notify_service": "Bei der Companion-App bekommst du Knöpfe zum Öffnen und Ausblenden."
+        }
+      }
+    },
+    "error": {
+      "no_terms": "Mindestens ein Suchbegriff wird gebraucht.",
+      "no_location": "Ort angeben oder Homeoffice-Stellen einbeziehen."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Suchprofil ändern",
+        "data": {
+          "location": "Ort",
+          "radius": "Umkreis",
+          "include_remote": "Homeoffice-Stellen bundesweit einbeziehen",
+          "search_terms": "Suchbegriffe (Berufe und Themen)",
+          "skills": "Deine Fähigkeiten",
+          "excluded_employers": "Arbeitgeber ausschließen",
+          "min_score": "Mindestpunktzahl für eine Meldung",
+          "notify_service": "Benachrichtigen über",
+          "unwanted": "Abwerten bei (je −25 Punkte)",
+          "excluded_words": "Ausschließen bei (im Titel)",
+          "exclude_temp_agencies": "Zeitarbeit ausschließen",
+          "interval_minutes": "Abfrageintervall"
+        },
+        "data_description": {
+          "unwanted": "Zum Beispiel Junior, Helpdesk, Vertrieb.",
+          "excluded_words": "Zum Beispiel Ausbildung, Praktikum, Werkstudent."
+        }
+      }
+    },
+    "error": {
+      "no_terms": "Mindestens ein Suchbegriff wird gebraucht.",
+      "no_location": "Ort angeben oder Homeoffice-Stellen einbeziehen."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "new_jobs": {
+        "name": "Neue Stellen"
+      },
+      "matching_jobs": {
+        "name": "Passende Stellen"
+      },
+      "last_search": {
+        "name": "Letzte Suche"
+      }
+    },
+    "button": {
+      "mark_read": {
+        "name": "Alle als gelesen markieren"
+      },
+      "search_now": {
+        "name": "Jetzt suchen"
+      }
+    }
+  },
+  "services": {
+    "search": {
+      "name": "Jetzt suchen",
+      "description": "Startet sofort eine neue Suche."
+    },
+    "hide": {
+      "name": "Stelle ausblenden",
+      "description": "Blendet eine Stelle dauerhaft aus.",
+      "fields": {
+        "refnr": {
+          "name": "Referenznummer",
+          "description": "Referenznummer der Stelle bei der Bundesagentur."
+        }
+      }
+    },
+    "mark_read": {
+      "name": "Als gelesen markieren",
+      "description": "Markiert eine oder alle Stellen als gelesen.",
+      "fields": {
+        "refnr": {
+          "name": "Referenznummer",
+          "description": "Leer lassen für alle Stellen."
+        }
+      }
+    },
+    "reset": {
+      "name": "Neu beginnen",
+      "description": "Vergisst gemeldete und ausgeblendete Stellen; die nächste Suche verhält sich wie die erste."
+    }
+  }
+}

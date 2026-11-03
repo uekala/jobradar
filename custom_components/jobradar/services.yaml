@@ -1,0 +1,16 @@
+search:
+hide:
+  fields:
+    refnr:
+      required: true
+      example: "10000-1234567890-S"
+      selector:
+        text:
+mark_read:
+  fields:
+    refnr:
+      required: false
+      example: "10000-1234567890-S"
+      selector:
+        text:
+reset:
