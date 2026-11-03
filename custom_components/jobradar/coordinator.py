@@ -258,6 +258,8 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
             return
         self._bund_last = dt_util.utcnow()
         terms = self.profile.search_terms
+        if not self.bund.probe and terms:
+            await self.bund.async_probe(terms[0], location=location, radius=radius or None)
         failed = 0
         for term in terms:
             try:
