@@ -124,6 +124,7 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
         self.bund = BundClient(session)
         self._bund_last: datetime | None = None
         self._geo: dict[str, list[float] | None] = {}
+        self.bund_nearby: dict[str, int] = {}
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}"
         )
@@ -278,8 +279,12 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
             for job in jobs:
                 if job.refnr in found or job.refnr in self._seen:
                     continue
-                if self.bund.nationwide and not await self._async_nearby(job, radius):
-                    continue
+                if self.bund.nationwide:
+                    near = await self._async_nearby(job, radius)
+                    key = "im_umkreis" if near else "aussortiert"
+                    self.bund_nearby[key] = self.bund_nearby.get(key, 0) + 1
+                    if not near:
+                        continue
                 found[job.refnr] = job
         if terms and failed == len(terms):
             _LOGGER.warning("service.bund.de ist gerade nicht erreichbar: %s", self.bund.last_error)

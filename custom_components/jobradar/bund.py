@@ -138,6 +138,7 @@ class BundClient:
         self.place: str | None = None
         self.nationwide = False
         self.probe: dict[str, int | str] = {}
+        self.last_probe: dict[str, int | str] = {}
 
     async def async_probe(self, term: str, variants: dict[str, str], radius: int | None) -> None:
         """Probiert einmal pro Start, welche Ortsangabe Treffer liefert."""
@@ -151,7 +152,9 @@ class BundClient:
             counts["bundesweit"] = len(await self.search(term, place=None, radius=None))
         except BundError as err:
             counts["bundesweit"] = f"Fehler: {err}"
-        self.probe = counts
+        # Nur Fehler (etwa DNS gleich nach dem Start): beim nächsten Abruf noch einmal probieren
+        self.probe = counts if any(isinstance(v, int) for v in counts.values()) else {}
+        self.last_probe = counts
         for name, place in variants.items():
             if isinstance(counts.get(name), int) and counts[name]:
                 self.place, self.nationwide = place, False

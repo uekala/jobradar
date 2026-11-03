@@ -45,7 +45,11 @@ async def async_get_config_entry_diagnostics(
             "last_response": coordinator.bund.last_response,
             "place": coordinator.bund.place,
             "nationwide": coordinator.bund.nationwide,
-            "probe": coordinator.bund.probe,
+            "probe": coordinator.bund.last_probe,
             "geocoded_places": len(coordinator._geo),
+            "geocoded_ok": sum(1 for v in coordinator._geo.values() if v),
+            "geo_sample": dict(list(coordinator._geo.items())[:8]),
+            "last_geo": coordinator.client.last_geo,
+            "nearby": coordinator.bund_nearby,
         },
     }

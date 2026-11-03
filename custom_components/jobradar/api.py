@@ -328,6 +328,7 @@ class JobsucheClient:
         self.shapes: dict[str, dict[str, Any]] = {}
         self.pay_samples: dict[str, int] = {}
         self.detail_shape: dict[str, Any] | None = None
+        self.last_geo: dict[str, Any] = {}
 
     def new_run(self) -> None:
         """Jede Suche probiert die Detailansicht neu."""
@@ -357,6 +358,7 @@ class JobsucheClient:
             return None
         await asyncio.sleep(PAUSE)
         where = data.get("woOutput") if isinstance(data, dict) else None
+        self.last_geo = {"ort": place, "woOutput": where}
         coords = where.get("koordinaten") if isinstance(where, dict) else None
         if isinstance(coords, list):
             coords = coords[0] if coords else None
