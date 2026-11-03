@@ -229,6 +229,34 @@ async def test_salary_expectation(hass, jobboerse, pushes) -> None:
     assert "10000-0000000021-S" not in listed  # 42–50 T€ kostet 30 Punkte
 
 
+async def test_salary_reaches_older_stored_jobs(hass, jobboerse, pushes) -> None:
+    older = job(
+        "10000-0000000022-S",
+        "Systemadministrator VMware (m/w/d)",
+        "Alt Bekannt GmbH",
+        "Krefeld",
+        51.34,
+        6.59,
+        published=days_ago(9),
+    )
+    jobboerse.local.append(older)
+    await _setup(hass, **{CONF_SALARY: 70000})
+    listed = {s["refnr"] for s in _state(hass, "matching_jobs").attributes["stellen"]}
+    assert "10000-0000000022-S" in listed
+
+    # Später nennt dieselbe Anzeige ein Gehalt unter der Vorstellung
+    older.update(
+        verguetungsangabe="JAHRESGEHALT",
+        artDerVerguetung="GEHALTSSPANNE",
+        gehaltsspanneVon=42000,
+        gehaltsspanneBis=50000,
+    )
+    await _next_run(hass)
+
+    listed = {s["refnr"] for s in _state(hass, "matching_jobs").attributes["stellen"]}
+    assert "10000-0000000022-S" not in listed
+
+
 async def test_buttons_and_services(hass, jobboerse, pushes) -> None:
     await _setup(hass)
     await hass.services.async_call(

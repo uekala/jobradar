@@ -255,17 +255,19 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
         # Die v6-Suche beachtet veroeffentlichtseit nicht zuverlässig
         cutoff = (dt_util.now() - timedelta(days=days)).date()
         hits = len(found)
+
+        # Bekannte Stellen: Gehalt aus der frischen Suche übernehmen und neu bewerten.
+        # Vor dem Datumsfilter, damit auch ältere gemerkte Stellen ihr Gehalt bekommen.
+        for refnr, fresh in found.items():
+            known_job = self._jobs.get(refnr)
+            if known_job and (fresh.pay_low or fresh.pay_high) and not known_job.pay_low:
+                known_job.pay_low, known_job.pay_high = fresh.pay_low, fresh.pay_high
+
         found = {
             refnr: job
             for refnr, job in found.items()
             if (published := published_date(job)) is None or published >= cutoff
         }
-
-        # Bekannte Stellen: Gehalt aus der frischen Suche übernehmen und neu bewerten
-        for refnr, fresh in found.items():
-            known_job = self._jobs.get(refnr)
-            if known_job and (fresh.pay_low or fresh.pay_high) and not known_job.pay_low:
-                known_job.pay_low, known_job.pay_high = fresh.pay_low, fresh.pay_high
         for refnr, known_job in list(self._jobs.items()):
             score_job(known_job, profile)
             if known_job.excluded or known_job.score < min_score:
