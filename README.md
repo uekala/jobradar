@@ -9,7 +9,7 @@ Eigenständiges Quellcode-Projekt für die Claude-Artifact-Übersichtsseite des 
 - `index.html` – verbesserte Übersichtsseite (Ausgangsbasis: bereitgestellte `Uebersichtsseite.html`)
 - `archive/Uebersichtsseite-v1.html` – unveränderte Sicherung der Ausgangsversion
 - `tests/smoke_test.py` – Browser-Smoke-Test mit simulierter Claude-Datenbank
-- `preview/` – synthetische Desktop- und Mobile-Screenshots (keine echten Stellen-Daten)
+- Die Desktop- und Mobile-Vorschauen befinden sich im Projektpaket (ZIP).
 - `requirements-dev.txt` – Testabhängigkeit
 - `CHANGELOG.md` – Änderungen gegenüber der Ausgangsversion
 
