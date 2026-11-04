@@ -39,7 +39,8 @@ POINTS_MUTED = -20  # Arbeitgeber, dessen Stellen du mehrmals ausgeblendet hast
 
 # "(m/w/d)", "(w/m/d)", "(m/f/d)", "(all genders)", "(gn)" …
 _GENDER = re.compile(
-    r"\(\s*(?:[mwfdxi]\s*[/|,]\s*){1,3}[mwfdxi]\s*\)|\(\s*(?:all genders?|alle geschlechter|gn\*?|div)\s*\)",
+    r"\(\s*(?:[mwfdxi]\s*[/|,]\s*){1,3}[mwfdxi]\s*\)"
+    r"|\(\s*(?:all genders?|alle geschlechter|gn\*?|div)\s*\)",
     re.I,
 )
 
