@@ -85,7 +85,8 @@ def main() -> None:
             local = browser.new_page(viewport={"width": 390, "height": 844})
             errors = []
             local.on("pageerror", lambda error: errors.append(str(error)))
-            local.set_content(HTML.read_text(encoding="utf-8"), wait_until="domcontentloaded")
+            local_content = re.sub(r'<link[^>]+fonts\.googleapis\.com[^>]*>', "", HTML.read_text(encoding="utf-8"))
+            local.set_content(local_content, wait_until="domcontentloaded")
             local.locator("#alert").wait_for(state="visible")
             assert "Claude" in local.locator("#alert").inner_text()
             assert not errors, errors
@@ -95,11 +96,12 @@ def main() -> None:
             failing = browser.new_page(viewport={"width": 390, "height": 844})
             errors = []
             failing.on("pageerror", lambda error: errors.append(str(error)))
-            content = HTML.read_text(encoding="utf-8")
-            failing_stub = '<script>window.claude = { use: async () => { throw new Error("DB Testfehler") } };</script>\\n<script>'
+            content = re.sub(r'<link[^>]+fonts\.googleapis\.com[^>]*>', "", HTML.read_text(encoding="utf-8"))
+            failing_stub = '<script>window.claude = { use: async () => { throw new Error("DB Testfehler") } };</script>\n<script>'
             content = content.replace("<script>", failing_stub, 1)
             failing.set_content(content, wait_until="domcontentloaded")
-            failing.locator("#alert").wait_for(state="visible")
+            failing.wait_for_timeout(250)
+            assert not failing.locator("#alert").is_hidden()
             assert "DB Testfehler" in failing.locator("#alert").inner_text()
             assert not errors, errors
             print("PASS: Datenbank-Initialisierungsfehler wird abgefangen")
