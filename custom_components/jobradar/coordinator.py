@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -28,6 +28,8 @@ from .const import (
     CONF_MIN_SCORE,
     CONF_NO_TEMP_AGENCIES,
     CONF_NOTIFY,
+    CONF_QUIET_END,
+    CONF_QUIET_START,
     CONF_RADIUS,
     CONF_REMOTE,
     CONF_SALARY,
@@ -37,6 +39,8 @@ from .const import (
     DEFAULT_EXCLUDED_WORDS,
     DEFAULT_INTERVAL,
     DEFAULT_MIN_SCORE,
+    DEFAULT_QUIET_END,
+    DEFAULT_QUIET_START,
     DEFAULT_RADIUS,
     DEFAULT_SEARCH_TERMS,
     DEFAULT_SKILLS,
@@ -46,8 +50,10 @@ from .const import (
     FIRST_RUN_DAYS,
     KEEP_DAYS,
     MAX_DETAILS_PER_RUN,
+    MAX_ONLINE_CHECKS,
     MAX_PUSHES_PER_RUN,
     MIN_INTERVAL,
+    MUTE_AFTER_HIDES,
     NOTIFICATION_ID,
     RUN_DAYS,
     SEEN_DAYS,
@@ -56,6 +62,7 @@ from .const import (
 from .scoring import (
     Job,
     Profile,
+    clean_title,
     distance_km,
     normalize,
     parse_list,
@@ -124,6 +131,10 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
         self.bund = BundClient(session)
         self._bund_last: datetime | None = None
         self._geo: dict[str, list[float] | None] = {}
+        self._held: list[str] = []  # in der Ruhezeit gefunden, noch nicht gemeldet
+        self._hidden_employers: dict[str, int] = {}
+        self._last_cleanup = ""
+        self.removed_expired = 0
         self.bund_nearby: dict[str, int] = {}
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}"
@@ -141,7 +152,8 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
 
     @property
     def profile(self) -> Profile:
-        return profile_from(self.conf)
+        muted = tuple(e for e, n in self._hidden_employers.items() if n >= MUTE_AFTER_HIDES)
+        return replace(profile_from(self.conf), muted_employers=muted)
 
     @property
     def min_score(self) -> int:
@@ -153,6 +165,9 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
         self._seen = dict(stored.get("seen") or {})
         self._hidden = set(stored.get("hidden") or [])
         self._geo = dict(stored.get("geo") or {})
+        self._held = list(stored.get("held") or [])
+        self._hidden_employers = dict(stored.get("hidden_employers") or {})
+        self._last_cleanup = str(stored.get("last_cleanup") or "")
         self._unread = set(stored.get("unread") or [])
         self._jobs = {}
         profile, min_score = self.profile, self.min_score
@@ -173,6 +188,9 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
                 "seen": self._seen,
                 "hidden": sorted(self._hidden),
                 "geo": self._geo,
+                "held": self._held,
+                "hidden_employers": self._hidden_employers,
+                "last_cleanup": self._last_cleanup,
                 "unread": sorted(self._unread & set(self._jobs)),
                 "jobs": [job.as_dict() for job in self._jobs.values()],
             }
@@ -183,7 +201,7 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
         """Gleiche Stelle, mehrfach ausgeschrieben (etwa für mehrere Standorte)."""
         if not job.employer:
             return None
-        return normalize(job.title), normalize(job.employer)
+        return clean_title(job.title, job.place), normalize(job.employer)
 
     def _set_distance(self, job: Job) -> None:
         if job.remote or job.lat is None or job.lon is None:
@@ -400,19 +418,23 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
         for job in matched:
             self._jobs[job.refnr] = job
             self._unread.add(job.refnr)
-        self._initialized = True
+        if not first_run:
+            await self._async_cleanup()
         self._prune(now)
-        await self._async_save()
 
         if first_run:
+            self._initialized = True
+            await self._async_save()
             await self._async_announce_start(len(matched))
-        elif matched:
-            await self._async_announce(matched)
+        else:
             for job in matched:
                 self.hass.bus.async_fire(
                     EVENT_NEW_JOB,
                     {"entry_id": self.config_entry.entry_id, **job.as_dict(), "url": job.url},
                 )
+            self._held.extend(job.refnr for job in matched)
+            await self._async_flush_held()
+            await self._async_save()
 
         best = [
             {"score": j.score, "title": j.title, "excluded": bool(j.excluded)}
@@ -474,6 +496,53 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
             text += f" Quelle: {job.source}."
         return text
 
+    def quiet_now(self) -> bool:
+        """Ruhezeit (Ortszeit)? Gleicher Beginn und Ende = keine Ruhezeit."""
+        start = int(self.conf.get(CONF_QUIET_START, DEFAULT_QUIET_START))
+        end = int(self.conf.get(CONF_QUIET_END, DEFAULT_QUIET_END))
+        if start == end:
+            return False
+        hour = dt_util.now().hour
+        return start <= hour < end if start < end else hour >= start or hour < end
+
+    async def _async_flush_held(self) -> None:
+        """Meldet gesammelte Stellen, sobald keine Ruhezeit ist."""
+        if not self._held or self.quiet_now():
+            return
+        waiting = [
+            self._jobs[refnr]
+            for refnr in dict.fromkeys(self._held)
+            if refnr in self._jobs and refnr in self._unread
+        ]
+        self._held.clear()
+        if waiting:
+            await self._async_announce(sorted(waiting, key=_sort_key))
+
+    async def _async_cleanup(self) -> None:
+        """Einmal am Tag: abgelaufene und gelöschte Anzeigen aus der Liste nehmen."""
+        today = dt_util.now().date().isoformat()
+        if self._last_cleanup == today:
+            return
+        self._last_cleanup = today
+        gone: list[str] = [
+            refnr for refnr, job in self._jobs.items() if job.deadline and job.deadline < today
+        ]
+        # Nur Stellen, deren Detailansicht schon einmal geladen wurde: bei anderen sagt
+        # ein 404 nichts (Partneranzeigen haben oft keine Detailansicht)
+        checkable = sorted(
+            (j for j in self._jobs.values() if j.from_jobboerse and j.details_loaded),
+            key=lambda j: j.published,
+        )[:MAX_ONLINE_CHECKS]
+        for job in checkable:
+            if await self.client.is_online(job.refnr) is False:
+                gone.append(job.refnr)
+        for refnr in gone:
+            self._jobs.pop(refnr, None)
+            self._unread.discard(refnr)
+        self.removed_expired += len(gone)
+        if gone:
+            _LOGGER.debug("%s abgelaufene Stellen entfernt", len(gone))
+
     async def _async_announce(self, matched: list[Job]) -> None:
         for job in matched[:MAX_PUSHES_PER_RUN]:
             await self._async_send(job.title[:100], self.describe(job), job)
@@ -505,7 +574,11 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
 
     async def async_hide(self, refnr: str) -> None:
         self._hidden.add(refnr)
-        self._jobs.pop(refnr, None)
+        job = self._jobs.pop(refnr, None)
+        if job and job.employer:
+            # Wer mehrmals "Nicht interessant" bekommt, wird künftig abgewertet
+            key = normalize(job.employer)
+            self._hidden_employers[key] = self._hidden_employers.get(key, 0) + 1
         self._unread.discard(refnr)
         await self._async_save()
         self.async_set_updated_data(self._snapshot())
@@ -523,6 +596,8 @@ class JobradarCoordinator(DataUpdateCoordinator[Snapshot]):
         self._initialized = False
         self._seen.clear()
         self._hidden.clear()
+        self._hidden_employers.clear()
+        self._held.clear()
         self._unread.clear()
         self._jobs.clear()
         await self._async_save()

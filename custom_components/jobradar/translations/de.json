@@ -15,7 +15,9 @@
           "notify_service": "Benachrichtigen über",
           "salary_expectation": "Gehaltsvorstellung (brutto pro Jahr)",
           "min_pay_grade": "Mindest-Entgeltgruppe (TVöD/TV-L)",
-          "include_bund": "Auch service.bund.de durchsuchen (öffentlicher Dienst)"
+          "include_bund": "Auch service.bund.de durchsuchen (öffentlicher Dienst)",
+          "quiet_start": "Ruhezeit ab",
+          "quiet_end": "Ruhezeit bis"
         },
         "data_description": {
           "location": "Stadt oder Postleitzahl. Leer lassen für reine Homeoffice-Suche.",
@@ -26,7 +28,9 @@
           "notify_service": "Bei der Companion-App bekommst du Knöpfe zum Öffnen und Ausblenden.",
           "salary_expectation": "Stellen mit Gehaltsangabe darunter verlieren 30 Punkte und werden markiert, passende bekommen 5. 0 = nicht vergleichen.",
           "min_pay_grade": "Für Stellen, die statt Euro eine Entgelt- oder Besoldungsgruppe nennen, z. B. 11 für E11. 0 = nicht vergleichen.",
-          "include_bund": "Stellen von Bund, Ländern, Städten und Kommunen über den RSS-Feed von service.bund.de, im selben Umkreis, höchstens alle zwei Stunden."
+          "include_bund": "Stellen von Bund, Ländern, Städten und Kommunen über den RSS-Feed von service.bund.de, im selben Umkreis, höchstens alle zwei Stunden.",
+          "quiet_start": "In der Ruhezeit kommen keine Push-Nachrichten; neue Stellen werden danach gesammelt gemeldet. Beginn gleich Ende = keine Ruhezeit.",
+          "quiet_end": "Ende der Ruhezeit, z. B. 7 für 7 Uhr."
         }
       }
     },
@@ -54,14 +58,18 @@
           "interval_minutes": "Abfrageintervall",
           "salary_expectation": "Gehaltsvorstellung (brutto pro Jahr)",
           "min_pay_grade": "Mindest-Entgeltgruppe (TVöD/TV-L)",
-          "include_bund": "Auch service.bund.de durchsuchen (öffentlicher Dienst)"
+          "include_bund": "Auch service.bund.de durchsuchen (öffentlicher Dienst)",
+          "quiet_start": "Ruhezeit ab",
+          "quiet_end": "Ruhezeit bis"
         },
         "data_description": {
           "unwanted": "Zum Beispiel Junior, Helpdesk, Vertrieb.",
           "excluded_words": "Zum Beispiel Ausbildung, Praktikum, Werkstudent.",
           "salary_expectation": "Stellen mit Gehaltsangabe darunter verlieren 30 Punkte und werden markiert, passende bekommen 5. 0 = nicht vergleichen.",
           "min_pay_grade": "Für Stellen, die statt Euro eine Entgelt- oder Besoldungsgruppe nennen, z. B. 11 für E11. 0 = nicht vergleichen.",
-          "include_bund": "Stellen von Bund, Ländern, Städten und Kommunen über den RSS-Feed von service.bund.de, im selben Umkreis, höchstens alle zwei Stunden."
+          "include_bund": "Stellen von Bund, Ländern, Städten und Kommunen über den RSS-Feed von service.bund.de, im selben Umkreis, höchstens alle zwei Stunden.",
+          "quiet_start": "In der Ruhezeit kommen keine Push-Nachrichten; neue Stellen werden danach gesammelt gemeldet. Beginn gleich Ende = keine Ruhezeit.",
+          "quiet_end": "Ende der Ruhezeit, z. B. 7 für 7 Uhr."
         }
       }
     },

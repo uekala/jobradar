@@ -22,6 +22,8 @@ from custom_components.jobradar.const import (
     CONF_MIN_GRADE,
     CONF_MIN_SCORE,
     CONF_NOTIFY,
+    CONF_QUIET_END,
+    CONF_QUIET_START,
     CONF_RADIUS,
     CONF_REMOTE,
     CONF_SALARY,
@@ -44,6 +46,9 @@ BASE = {
     CONF_EXCLUDED_EMPLOYERS: "Stadt Krefeld, KRZN",
     CONF_MIN_SCORE: 50,
     CONF_NOTIFY: "notify.mobile_app_handy",
+    # Ruhezeit aus, damit die Tests nicht von der Uhrzeit abhängen
+    CONF_QUIET_START: 0,
+    CONF_QUIET_END: 0,
 }
 
 pytestmark = pytest.mark.usefixtures("no_pause", "at_home")
@@ -403,3 +408,103 @@ async def test_config_flow(hass) -> None:
 
 async def _ok(hass, entry) -> bool:
     return True
+
+
+async def _at(hass: HomeAssistant, freezer, when: str) -> None:
+    """Uhr auf eine Ortszeit in Berlin stellen und die nächste Suche laufen lassen."""
+    freezer.move_to(when)
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done(wait_background_tasks=True)
+
+
+async def test_quiet_hours_hold_pushes_until_morning(hass, jobboerse, pushes, freezer) -> None:
+    await hass.config.async_set_time_zone("Europe/Berlin")
+    freezer.move_to("2026-11-04 21:00:00+01:00")
+    await _setup(hass, **{CONF_QUIET_START: 22, CONF_QUIET_END: 7})
+    pushes.clear()
+    events = async_capture_events(hass, EVENT_NEW_JOB)
+
+    for refnr, title in (
+        ("10000-0000000031-S", "Systemadministrator VMware (m/w/d)"),
+        ("10000-0000000032-S", "Linux-Administrator (m/w/d)"),
+    ):
+        jobboerse.local.append(job(refnr, title, f"Nachtfirma {refnr[-2:]}", "Krefeld", 51.3, 6.6))
+    await _at(hass, freezer, "2026-11-04 23:30:00+01:00")
+    assert pushes == []  # Ruhezeit: nichts aufs Handy …
+    assert len(events) == 2  # … aber Automationen erfahren es sofort
+    assert _state(hass, "new_jobs").state == "4"
+
+    await _at(hass, freezer, "2026-11-05 07:05:00+01:00")
+    assert sorted(p.data["title"] for p in pushes) == [
+        "Linux-Administrator (m/w/d)",
+        "Systemadministrator VMware (m/w/d)",
+    ]
+
+    # Nichts Neues: keine Wiederholung
+    pushes.clear()
+    await _at(hass, freezer, "2026-11-05 07:40:00+01:00")
+    assert pushes == []
+
+
+async def test_expired_postings_leave_the_list(hass, jobboerse, pushes, freezer) -> None:
+    await hass.config.async_set_time_zone("Europe/Berlin")
+    freezer.move_to("2026-11-04 10:00:00+01:00")
+    jobboerse.bund.append(
+        bund_item(
+            6683900,
+            "IT-Systemadministrator (m/w/d) Rechenzentrum",
+            "Landesamt Muster",
+            "47798 Krefeld",
+            deadline="04.11.2026 23:59",
+        )
+    )
+    await _setup(hass)
+    titles = {s["titel"] for s in _state(hass, "matching_jobs").attributes["stellen"]}
+    assert "IT-Systemadministrator (m/w/d) Rechenzentrum" in titles
+    assert "Systemadministrator (m/w/d) Linux und VMware" in titles
+
+    # Am nächsten Tag: Frist vorbei, und die Jobbörse hat die andere Anzeige gelöscht
+    jobboerse.details.pop("10000-0000000001-S")
+    await _at(hass, freezer, "2026-11-05 10:00:00+01:00")
+    titles = {s["titel"] for s in _state(hass, "matching_jobs").attributes["stellen"]}
+    assert "IT-Systemadministrator (m/w/d) Rechenzentrum" not in titles
+    assert "Systemadministrator (m/w/d) Linux und VMware" not in titles
+    # Stellen ohne geladene Detailansicht bleiben, ein 404 sagt bei ihnen nichts
+    assert "Cloud Engineer (m/w/d) Kubernetes" in titles
+
+
+async def test_employer_hidden_twice_is_marked_down(hass, jobboerse, pushes) -> None:
+    for refnr, area in (("10000-0000000041-S", "Netzwerk"), ("10000-0000000042-S", "Server")):
+        jobboerse.local.append(
+            job(refnr, f"Systemadministrator {area} (m/w/d)", "Nerv GmbH", "Krefeld", 51.3, 6.6)
+        )
+    await _setup(hass)
+    for refnr in ("10000-0000000041-S", "10000-0000000042-S"):
+        hass.bus.async_fire("mobile_app_notification_action", {"action": f"JOBRADAR_HIDE::{refnr}"})
+        await hass.async_block_till_done()
+
+    pushes.clear()
+    jobboerse.local.append(
+        job("10000-0000000043-S", "Systemadministrator (m/w/d)", "Nerv GmbH", "Krefeld", 51.3, 6.6)
+    )
+    await _next_run(hass)
+    # 50 (Rolle) + 5 (nah) − 20 (zweimal ausgeblendet) = 35 < 50: keine Meldung
+    assert pushes == []
+
+
+async def test_same_posting_with_title_variants_is_reported_once(hass, jobboerse, pushes) -> None:
+    await _setup(hass)
+    pushes.clear()
+    jobboerse.local += [
+        job(
+            "10000-0000000051-S",
+            "Linux-Administrator (m/w/d) - Neuss",
+            "Doppel AG",
+            "Neuss",
+            51.2,
+            6.7,
+        ),
+        job("10000-0000000052-S", "Linux-Administrator (w/m/d)", "Doppel AG", "Moers", 51.45, 6.62),
+    ]
+    await _next_run(hass)
+    assert len(pushes) == 1 and pushes[0].data["message"].startswith("Doppel AG")

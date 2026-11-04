@@ -442,6 +442,24 @@ class JobsucheClient:
             raise last_error
         raise JobsucheError(f"Kein Suchpfad erreichbar ({last_error})")
 
+    async def is_online(self, refnr: str) -> bool | None:
+        """Steht die Stelle noch in der Jobbörse? None = nicht feststellbar."""
+        code = base64.b64encode(refnr.encode()).decode()
+        missing = 0
+        for path in DETAIL_PATHS:
+            try:
+                data = await self._get(path.format(code=code))
+            except HttpStatusError as err:
+                if err.status in (404, 410):
+                    missing += 1
+                    continue
+                return None
+            except (aiohttp.ClientError, TimeoutError):
+                return None
+            await asyncio.sleep(PAUSE)
+            return isinstance(data, dict) or None
+        return False if missing == len(DETAIL_PATHS) else None
+
     async def load_details(self, job: Job) -> bool:
         """Lädt die Detailansicht; pausiert, wenn die Schnittstelle sie nicht liefert."""
         if not self._details_available:

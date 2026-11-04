@@ -21,6 +21,8 @@ CONF_NO_TEMP_AGENCIES = "exclude_temp_agencies"
 CONF_SALARY = "salary_expectation"
 CONF_MIN_GRADE = "min_pay_grade"
 CONF_BUND = "include_bund"
+CONF_QUIET_START = "quiet_start"
+CONF_QUIET_END = "quiet_end"
 
 DEFAULT_RADIUS = 50
 DEFAULT_MIN_SCORE = 50
@@ -49,6 +51,13 @@ SEEN_DAYS = 90
 MAX_DETAILS_PER_RUN = 15
 MAX_PUSHES_PER_RUN = 5
 MAX_LISTED = 30
+# Ruhezeit: Meldungen in dieser Zeit kommen gesammelt danach (Stunde, Ortszeit)
+DEFAULT_QUIET_START = 22
+DEFAULT_QUIET_END = 7
+# Gemerkte Stellen einmal am Tag prüfen, ob sie noch online sind
+MAX_ONLINE_CHECKS = 25
+# Ab so vielen "Nicht interessant" wird ein Arbeitgeber abgewertet
+MUTE_AFTER_HIDES = 2
 
 EVENT_NEW_JOB = "jobradar_new_job"
 ACTION_HIDE = "JOBRADAR_HIDE::"

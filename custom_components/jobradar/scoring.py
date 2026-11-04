@@ -35,6 +35,13 @@ POINTS_NEARBY = 5
 NEARBY_KM = 25
 POINTS_PAY_OK = 5
 POINTS_PAY_LOW = -30
+POINTS_MUTED = -20  # Arbeitgeber, dessen Stellen du mehrmals ausgeblendet hast
+
+# "(m/w/d)", "(w/m/d)", "(m/f/d)", "(all genders)", "(gn)" …
+_GENDER = re.compile(
+    r"\(\s*(?:[mwfdxi]\s*[/|,]\s*){1,3}[mwfdxi]\s*\)|\(\s*(?:all genders?|alle geschlechter|gn\*?|div)\s*\)",
+    re.I,
+)
 
 
 def normalize(text: str) -> str:
@@ -44,6 +51,22 @@ def normalize(text: str) -> str:
     """
     text = text.lower().replace("ß", "ss")
     return re.sub(r"[\s\-_/.,:;()|]+", "", text)
+
+
+def clean_title(title: str, place: str = "") -> str:
+    """Titel ohne Geschlechtsangabe und ohne angehängten Ort, für den Vergleich.
+
+    "Systemadministrator (m/w/d) - Duisburg" und "Systemadministrator (w/m/d)"
+    gelten so als dieselbe Stelle.
+    """
+    text = _GENDER.sub(" ", title)
+    if place:
+        for sep in (" - ", " – ", " | ", " in ", ", "):
+            head, found, tail = text.rpartition(sep)
+            if found and normalize(tail) == normalize(place):
+                text = head
+                break
+    return normalize(text)
 
 
 def parse_list(value: str | list[str] | None) -> list[str]:
@@ -70,6 +93,7 @@ class Profile:
     excluded_employers: tuple[str, ...] = ()
     salary_expectation: int = 0  # Jahresbrutto in Euro, 0 = nicht vergleichen
     min_pay_grade: int = 0  # Entgeltgruppe TVöD/TV-L, 0 = nicht vergleichen
+    muted_employers: tuple[str, ...] = ()  # aus "Nicht interessant" gelernt
 
 
 @dataclass
@@ -232,6 +256,8 @@ def score_job(job: Job, profile: Profile) -> Job:
     for word in profile.unwanted:
         if _contains(title, word):
             points += POINTS_UNWANTED
+    if employer and any(_contains(employer, name) for name in profile.muted_employers):
+        points += POINTS_MUTED
 
     if job.remote:
         points += POINTS_REMOTE

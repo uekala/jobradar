@@ -8,7 +8,9 @@ Jobradar sucht in Home Assistant regelmäßig nach neuen Stellen in der [Jobbör
 - **Fragt service.bund.de** höchstens alle zwei Stunden über den RSS-Feed, den die Seite für jede Stellensuche anbietet, im selben Umkreis. Dieselbe Stelle aus beiden Quellen wird nur einmal gemeldet; die Meldung nennt die Bewerbungsfrist.
 - **Bewertet** jede neue Stelle mit 0 bis 100 Punkten: passende Rolle im Titel, deine Fähigkeiten in Titel und Beschreibung, Homeoffice und Nähe.
 - **Filtert** Ausbildung, Praktika, Werkstudentenstellen, Zeitarbeit und Arbeitgeber, die du ausschließt – zum Beispiel deinen jetzigen.
-- **Meldet** neue Stellen ab einer Mindestpunktzahl einzeln, höchstens fünf pro Suche; der Rest kommt als Sammelmeldung.
+- **Meldet** neue Stellen ab einer Mindestpunktzahl einzeln, höchstens fünf pro Suche; der Rest kommt als Sammelmeldung. In der Ruhezeit (Vorgabe 22 bis 7 Uhr) bleibt das Handy still; was nachts dazukommt, kommt morgens gesammelt.
+- **Lernt** aus „Nicht interessant“: Arbeitgeber, deren Stellen du zweimal ausgeblendet hast, verlieren bei neuen Stellen 20 Punkte.
+- **Räumt auf**: Einmal am Tag fliegen Stellen aus der Liste, deren Bewerbungsfrist vorbei ist oder die die Jobbörse gelöscht hat. Dieselbe Stelle gilt auch dann als Dublette, wenn sich der Titel nur in „(m/w/d)“ oder einem angehängten Ort unterscheidet.
 - **Merkt sich**, was schon gemeldet oder ausgeblendet wurde – auch über Neustarts hinweg.
 
 ## Installation über HACS
@@ -36,6 +38,7 @@ In den Optionen lassen sich außerdem Abwertungen (z. B. *Junior, Helpdesk*), Au
 | --- | --- |
 | Gehaltsvorstellung (brutto pro Jahr) | Etwa jede fünfte Stelle der Jobbörse nennt ein Gehalt, als Spanne oder Festbetrag. Liegt auch das obere Ende darunter, verliert die Stelle 30 Punkte und wird in der Meldung markiert; passt es, gibt es 5 Punkte. 0 = nicht vergleichen. |
 | Mindest-Entgeltgruppe (TVöD/TV-L) | Für Stellen im öffentlichen Dienst, die statt Euro eine Entgelt- oder Besoldungsgruppe nennen (z. B. *E 11 TVöD*, *A 11*). Darunter: wie oben. 0 = nicht vergleichen. |
+| Ruhezeit ab / bis | Stunden (Ortszeit), in denen keine Push-Nachrichten kommen. Gleicher Wert = keine Ruhezeit. |
 
 ### So entstehen die Punkte
 
@@ -56,6 +59,23 @@ Mit der Companion-App öffnet ein Tipp die Stelle bei der Bundesagentur. Zwei Kn
 - **Nicht interessant** – blendet die Stelle dauerhaft aus
 
 Bei der ersten Suche schickt Jobradar nur eine Meldung mit der Zahl der passenden Stellen der letzten 14 Tage; danach meldet es jede neue einzeln.
+
+### Karte fürs Dashboard
+
+Eine Markdown-Karte zeigt die ungelesenen Stellen mit Link. Den Namen des Sensors (hier `sensor.jobradar_krefeld_neue_stellen`) an deinen anpassen:
+
+```yaml
+type: markdown
+title: Jobradar
+content: >-
+  {% set stellen = state_attr('sensor.jobradar_krefeld_neue_stellen', 'stellen') or [] %}
+  {% for s in stellen %}
+  **[{{ s.titel }}]({{ s.url }})**<br>
+  {{ s.arbeitgeber }} · {{ s.ort or 'Homeoffice' }}{% if s.entfernung_km %} · {{ s.entfernung_km | round(0) | int }} km{% endif %}{% if s.gehalt %} · {{ s.gehalt }}{% endif %}{% if s.bewerbungsfrist %} · bis {{ as_timestamp(s.bewerbungsfrist) | timestamp_custom('%d.%m.') }}{% endif %} · {{ s.punkte }} Punkte
+  {% else %}
+  Keine neuen Stellen.
+  {% endfor %}
+```
 
 ## Entitäten, Aktionen, Ereignis
 
