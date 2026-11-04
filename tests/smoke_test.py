@@ -37,8 +37,8 @@ STUB = r"""
 def page_with_stub(browser, width: int = 1280, height: int = 900, dark: bool = False):
     page = browser.new_page(viewport={"width": width, "height": height}, color_scheme="dark" if dark else "light")
     content = HTML.read_text(encoding="utf-8")
-    content = re.sub(r'<link[^>]+fonts\\.googleapis\\.com[^>]*>', "", content)
-    content = content.replace("<script>", f"<script>{STUB}</script>\\n<script>", 1)
+    content = re.sub(r'<link[^>]+fonts\.googleapis\.com[^>]*>', "", content)
+    content = content.replace("<script>", f"<script>{STUB}</script>\n<script>", 1)
     page.set_content(content, wait_until="domcontentloaded")
     page.locator(".job").first.wait_for()
     return page
