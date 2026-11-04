@@ -6,10 +6,10 @@ Eigenständiges Quellcode-Projekt für die Claude-Artifact-Übersichtsseite des 
 
 ## Inhalt
 
-- `index.html` – verbesserte Übersichtsseite (Ausgangsbasis: vom Nutzer bereitgestellte `Uebersichtsseite.html`)
-- `archive/Uebersichtsseite-v1.html` – unveränderte Sicherung der bereitgestellten Ausgangsversion
-- `tests/smoke_test.py` – lokaler Browser-Smoke-Test mit simulierter Claude-Datenbank
-- Die Desktop- und Mobile-Vorschauen werden separat mit dem Projektpaket bereitgestellt.
+- `index.html` – verbesserte Übersichtsseite (Ausgangsbasis: bereitgestellte `Uebersichtsseite.html`)
+- `archive/Uebersichtsseite-v1.html` – unveränderte Sicherung der Ausgangsversion
+- `tests/smoke_test.py` – Browser-Smoke-Test mit simulierter Claude-Datenbank
+- `preview/` – synthetische Desktop- und Mobile-Screenshots (keine echten Stellen-Daten)
 - `requirements-dev.txt` – Testabhängigkeit
 - `CHANGELOG.md` – Änderungen gegenüber der Ausgangsversion
 
@@ -37,15 +37,11 @@ python -m playwright install chromium
 python tests/smoke_test.py
 ```
 
-Der Test stellt eine kleine simulierte Datenbank bereit und prüft Laden, Filter, Statusänderung, Notizspeicherung, Profiländerung, Mobil-Layout und den lokalen Modus ohne Claude.
+Der Test verwendet Beispieldaten und prüft Laden, Filter, Kartenlayout, Statusänderung, Notizspeicherung, Profiländerung, Mobilansicht, lokalen Modus und die Fehlerbehandlung der Datenbankinitialisierung.
 
-## In ein neues GitHub-Repository übernehmen
+## GitHub
 
-Empfohlener Repository-Name: `claude-jobradar`.
-
-Da das Projekt persönliche Karriere- und Suchprofil-Kontexte betrifft, sollte das Repository **privat** angelegt werden. Nur Quellcode und Tests gehören hinein – keine Exporte aus der Artifact-Datenbank.
-
-Die aktive Entwicklungsfassung liegt im Branch `dashboard-v2`. Der bestehende `main`-Branch wird nicht verändert.
+Das private Repository ist `uekala/claude-jobradar`. Die aktive Entwicklungsfassung liegt im Branch `dashboard-v2`. Der bestehende `main`-Branch bleibt unverändert.
 
 ## Veröffentlichung in Claude
 
