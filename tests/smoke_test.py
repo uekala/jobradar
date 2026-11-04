@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
+import shutil
 
 from playwright.sync_api import sync_playwright
 
@@ -48,7 +49,8 @@ def main() -> None:
     if not HTML.exists():
         raise SystemExit(f"HTML nicht gefunden: {HTML}")
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, executable_path="/usr/bin/chromium", args=["--no-sandbox"])
+        browser_path = shutil.which("chromium") or shutil.which("chromium-browser")
+        browser = p.chromium.launch(headless=True, executable_path=browser_path, args=["--no-sandbox"] if browser_path else [])
         try:
             page = page_with_stub(browser)
             assert page.locator(".job").count() == 1
@@ -89,6 +91,19 @@ def main() -> None:
             assert not errors, errors
             print("PASS: Lokaler Modus ohne Claude und ohne JavaScript-Laufzeitfehler")
             local.close()
+
+            failing = browser.new_page(viewport={"width": 390, "height": 844})
+            errors = []
+            failing.on("pageerror", lambda error: errors.append(str(error)))
+            content = HTML.read_text(encoding="utf-8")
+            failing_stub = '<script>window.claude = { use: async () => { throw new Error("DB Testfehler") } };</script>\\n<script>'
+            content = content.replace("<script>", failing_stub, 1)
+            failing.set_content(content, wait_until="domcontentloaded")
+            failing.locator("#alert").wait_for(state="visible")
+            assert "DB Testfehler" in failing.locator("#alert").inner_text()
+            assert not errors, errors
+            print("PASS: Datenbank-Initialisierungsfehler wird abgefangen")
+            failing.close()
         finally:
             browser.close()
 
