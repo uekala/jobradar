@@ -4,30 +4,38 @@ import { Script } from "node:vm";
 import test from "node:test";
 
 const html = readFileSync(new URL("../uebersichtsseite.html", import.meta.url), "utf8");
-const scripts = [...html.matchAll(/<script\\b[^>]*>([\\s\\S]*?)<\\/script>/gi)];
+const scriptStart = html.indexOf("<script>");
+const scriptEnd = html.indexOf("</script>", scriptStart);
+const script = scriptStart >= 0 && scriptEnd > scriptStart
+  ? html.slice(scriptStart + "<script>".length, scriptEnd)
+  : "";
 
 test("dashboard document has a valid HTML shell and one application script", () => {
   assert.match(html, /^<!doctype html>/i);
   assert.match(html, /<html lang="de">/i);
-  assert.equal(scripts.length, 1, "Expected exactly one embedded application script");
+  assert.ok(script, "Expected one embedded application script");
+  assert.equal(html.split("<script>").length - 1, 1);
 });
 
 test("embedded dashboard JavaScript parses", () => {
-  assert.doesNotThrow(() => new Script(scripts[0][1], { filename: "uebersichtsseite.html" }));
+  assert.doesNotThrow(() => new Script(script, { filename: "uebersichtsseite.html" }));
 });
 
 test("dashboard keeps the Claude database contract", () => {
-  const script = scripts[0][1];
-  assert.match(script, /claude\\.use\\(["']db["']\\)/);
-  assert.match(script, /collection\\(["']jobs["']\\)/);
-  assert.match(script, /collection\\(["']laeufe["']\\)/);
-  assert.match(script, /doc\\(["']profil\\/aktuell["']\\)/);
+  for (const contract of [
+    'claude.use("db")',
+    'db.collection("jobs")',
+    'db.collection("laeufe")',
+    'db.doc("profil/aktuell")',
+  ]) {
+    assert.ok(script.includes(contract), `Missing database contract: ${contract}`);
+  }
   for (const status of ["neu", "merken", "beworben", "absage", "verworfen"]) {
     assert.ok(script.includes(status), `Missing status: ${status}`);
   }
 });
 
 test("external job links are restricted to HTTP or HTTPS", () => {
-  assert.match(scripts[0][1], /url\\.protocol === ["']https:["'] \\|\\| url\\.protocol === ["']http:["']/);
-  assert.match(scripts[0][1], /rel: ["']noopener["']/);
+  assert.ok(script.includes('url.protocol === "https:" || url.protocol === "http:"'));
+  assert.ok(script.includes('rel: "noopener"'));
 });
