@@ -16,6 +16,7 @@ jobs:
       - uses: home-assistant/actions/hassfest@master
 
   hacs:
+    if: github.repository_visibility == 'public'
     runs-on: ubuntu-latest
     steps:
       - uses: hacs/action@main
