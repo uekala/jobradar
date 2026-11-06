@@ -44,6 +44,7 @@ def initialize_database(db_path: str | None = None) -> None:
                 salary_max REAL,
                 remote_type TEXT,
                 score INTEGER,
+                base_score INTEGER,
                 status TEXT NOT NULL DEFAULT 'neu',
                 notes TEXT NOT NULL DEFAULT '',
                 published_at TEXT,
@@ -95,10 +96,15 @@ def initialize_database(db_path: str | None = None) -> None:
             CREATE INDEX IF NOT EXISTS idx_jobs_first_seen ON jobs(first_seen_at);
 
             INSERT INTO schema_meta(key, value)
-            VALUES ('schema_version', '2')
+            VALUES ('schema_version', '3')
             ON CONFLICT(key) DO UPDATE SET value = excluded.value;
             """
         )
+        columns = {row["name"] for row in db.execute("PRAGMA table_info(jobs)")}
+        if "base_score" not in columns:
+            db.execute("ALTER TABLE jobs ADD COLUMN base_score INTEGER")
+            db.execute("UPDATE jobs SET base_score = score WHERE base_score IS NULL")
+        db.execute("UPDATE schema_meta SET value = '3' WHERE key = 'schema_version'")
 
 
 def database_is_ready(db_path: str | None = None) -> bool:
