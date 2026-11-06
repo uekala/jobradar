@@ -2,13 +2,13 @@ name: Build Home Assistant add-on
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - ha-green-foundation
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   build:
@@ -20,27 +20,12 @@ jobs:
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/uekala/aarch64-addon-jobradar
-          tags: |
-            type=semver,pattern={{version}}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-      - name: Build and push ARM64 add-on
+      - name: Build ARM64 add-on (no publish)
         uses: docker/build-push-action@v6
         with:
           context: ./jobradar
           platforms: linux/arm64
-          push: true
+          push: false
+          tags: local/jobradar:ci
           build-args: |
-            BUILD_FROM=ghcr.io/home-assistant/aarch64-base-python:3.13
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+            BUILD_FROM=python:3.12-slim-bookworm

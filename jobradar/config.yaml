@@ -16,4 +16,3 @@ map:
   - data:rw
 options: {}
 schema: {}
-image: ghcr.io/uekala/{arch}-addon-jobradar

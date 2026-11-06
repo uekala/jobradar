@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base-python:3.13
+ARG BUILD_FROM=python:3.12-slim-bookworm
 FROM ${BUILD_FROM}
 
 WORKDIR /app
