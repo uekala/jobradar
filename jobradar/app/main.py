@@ -204,3 +204,78 @@ def save_rule(rule_id: str, payload: RuleUpdate) -> dict[str, Any]:
             (rule_id, json.dumps(payload.data, ensure_ascii=False), updated),
         )
     return {"id": rule_id, "data": payload.data, "updated_at": updated}
+
+
+class RunCreate(BaseModel):
+    started_at: str | None = None
+
+
+class RunFinish(BaseModel):
+    status: Literal["success", "partial", "failed"]
+    jobs_found: int = Field(default=0, ge=0)
+    jobs_new: int = Field(default=0, ge=0)
+    error_summary: str | None = Field(default=None, max_length=2000)
+
+
+@app.get("/api/overview")
+def overview() -> dict[str, Any]:
+    with connect() as db:
+        counts = {
+            row["status"]: row["count"]
+            for row in db.execute("SELECT status, COUNT(*) AS count FROM jobs GROUP BY status")
+        }
+        total = sum(counts.values())
+        average = db.execute("SELECT AVG(score) FROM jobs WHERE score IS NOT NULL").fetchone()[0]
+        latest_run = db.execute(
+            "SELECT * FROM runs ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        recent_jobs = db.execute(
+            "SELECT id, title, company, location, score, status, first_seen_at FROM jobs ORDER BY first_seen_at DESC LIMIT 5"
+        ).fetchall()
+    return {
+        "jobs_total": total,
+        "jobs_by_status": counts,
+        "average_score": round(average, 1) if average is not None else None,
+        "latest_run": dict(latest_run) if latest_run else None,
+        "recent_jobs": [dict(row) for row in recent_jobs],
+    }
+
+
+@app.get("/api/runs")
+def list_runs(limit: int = Query(default=20, ge=1, le=100)) -> dict[str, Any]:
+    with connect() as db:
+        rows = db.execute(
+            "SELECT * FROM runs ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+    return {"items": [dict(row) for row in rows]}
+
+
+@app.post("/api/runs", status_code=201)
+def create_run(payload: RunCreate) -> dict[str, Any]:
+    started = payload.started_at or now_iso()
+    with connect() as db:
+        cursor = db.execute(
+            "INSERT INTO runs (started_at, status) VALUES (?, 'running')",
+            (started,),
+        )
+        row = db.execute("SELECT * FROM runs WHERE id = ?", (cursor.lastrowid,)).fetchone()
+    return dict(row)
+
+
+@app.post("/api/runs/{run_id}/finish")
+def finish_run(run_id: int, payload: RunFinish) -> dict[str, Any]:
+    finished = now_iso()
+    with connect() as db:
+        cursor = db.execute(
+            """UPDATE runs SET finished_at = ?, status = ?, jobs_found = ?,
+            jobs_new = ?, error_summary = ? WHERE id = ? AND status = 'running'""",
+            (finished, payload.status, payload.jobs_found, payload.jobs_new,
+             payload.error_summary, run_id),
+        )
+        if cursor.rowcount == 0:
+            exists = db.execute("SELECT 1 FROM runs WHERE id = ?", (run_id,)).fetchone()
+            if exists is None:
+                raise HTTPException(status_code=404, detail="Suchlauf nicht gefunden")
+            raise HTTPException(status_code=409, detail="Suchlauf wurde bereits abgeschlossen")
+        row = db.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
+    return dict(row)
