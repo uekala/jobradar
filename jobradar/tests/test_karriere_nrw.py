@@ -89,6 +89,8 @@ def test_search_run_persists_vacancies_and_updates_existing_without_resetting_st
         assert first.json()["run"]["jobs_new"] == 1
         job = client.get("/api/jobs/karriere-nrw:abc-123").json()
         assert job["title"] == "Linux Systemadministrator"
+        assert job["score"] == 52
+        assert job["base_score"] == 52
 
         client.patch("/api/jobs/karriere-nrw:abc-123", json={"status": "gemerkt", "notes": "Interessant"})
         second = client.post("/api/search/run")
