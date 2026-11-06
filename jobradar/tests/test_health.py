@@ -336,3 +336,15 @@ def test_rule_can_be_deleted_and_unknown_rule_returns_404(tmp_path, monkeypatch)
         assert client.delete("/api/rules/missing").status_code == 404
     finally:
         client.__exit__(None, None, None)
+
+
+def test_dashboard_exposes_manual_search_control(tmp_path, monkeypatch):
+    client, _ = client_for(tmp_path, monkeypatch)
+    try:
+        response = client.get("/")
+        assert response.status_code == 200
+        assert 'id="run-search"' in response.text
+        assert 'api/search/run' in response.text
+        assert "karriere-nrw" in response.text
+    finally:
+        client.__exit__(None, None, None)
