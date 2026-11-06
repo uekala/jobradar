@@ -490,7 +490,7 @@ def run_enabled_search() -> dict[str, Any]:
         except Exception as exc:
             errors.append(f"{source['name']}: {exc}")
 
-    status = "failed" if errors and found_total == 0 and not found_total else ("partial" if errors or skipped_sources else "success")
+    status = "failed" if errors and found_total == 0 else ("partial" if errors or skipped_sources else "success")
     error_summary = "; ".join(errors)[:2000] if errors else None
     with connect() as db:
         db.execute(
