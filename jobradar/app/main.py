@@ -143,12 +143,12 @@ def create_job(payload: JobCreate) -> dict[str, Any]:
     with connect() as db:
         db.execute(
             """INSERT INTO jobs
-            (id,title,company,location,url,source,description,salary_min,salary_max,remote_type,score,
+            (id,title,company,location,url,source,description,salary_min,salary_max,remote_type,score,base_score,
              status,notes,published_at,first_seen_at,last_seen_at,created_at,updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,'neu','',?,?,?,?,?)""",
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'neu','',?,?,?,?,?)""",
             (job_id, data["title"], data["company"], data["location"], data["url"], data["source"],
              data["description"], data["salary_min"], data["salary_max"], data["remote_type"],
-             data["score"], data["published_at"], now, now, now, now),
+             data["score"], data["score"], data["published_at"], now, now, now, now),
         )
         row = db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
     return dict(row)
@@ -179,8 +179,39 @@ def update_job(job_id: str, payload: JobPatch) -> dict[str, Any]:
         )
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="Stelle nicht gefunden")
+        if "status" in changes:
+            _apply_learning_scores(db)
         row = db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
     return dict(row)
+
+
+def _learning_terms(text: str | None) -> set[str]:
+    import re
+    stop = {"und", "oder", "der", "die", "das", "mit", "für", "von", "auf", "the", "and", "with", "senior", "junior"}
+    return {word for word in re.findall(r"[a-zA-ZäöüÄÖÜß0-9+#.-]{3,}", (text or "").lower()) if word not in stop}
+
+
+def _apply_learning_scores(db: Any) -> None:
+    """Recalculate scores from immutable base scores and explicit user feedback."""
+    examples = db.execute(
+        "SELECT title, description, status FROM jobs WHERE status IN ('gemerkt','verworfen')"
+    ).fetchall()
+    positive: set[str] = set()
+    negative: set[str] = set()
+    for example in examples:
+        terms = _learning_terms(f"{example['title'] or ''} {example['description'] or ''}")
+        (positive if example["status"] == "gemerkt" else negative).update(terms)
+    rows = db.execute("SELECT id,title,description,score,base_score,status FROM jobs").fetchall()
+    for row in rows:
+        if row["status"] in ("gemerkt", "verworfen"):
+            continue
+        terms = _learning_terms(f"{row['title'] or ''} {row['description'] or ''}")
+        pos = len(terms & positive)
+        neg = len(terms & negative)
+        adjustment = max(-15, min(15, (pos - neg) * 2))
+        base = row["base_score"] if row["base_score"] is not None else row["score"]
+        if base is not None:
+            db.execute("UPDATE jobs SET score = ? WHERE id = ?", (max(0, min(100, base + adjustment)), row["id"]))
 
 
 @app.get("/api/profile")
