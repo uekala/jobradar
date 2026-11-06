@@ -1,5 +1,16 @@
 __pycache__/
 *.py[cod]
+.venv/
 .pytest_cache/
+.ruff_cache/
+.cache/
+public/
 .DS_Store
+
+# Zugangsdaten niemals einchecken
 .env
+*.p12
+*.pfx
+*.pem
+*.key
+*.crt

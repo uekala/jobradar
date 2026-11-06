@@ -6,10 +6,10 @@
   ],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/uekala/claude-jobradar",
+  "documentation": "https://github.com/uekala/jobradar",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/uekala/claude-jobradar/issues",
+  "issue_tracker": "https://github.com/uekala/jobradar/issues",
   "requirements": [],
   "version": "0.2.0"
 }
