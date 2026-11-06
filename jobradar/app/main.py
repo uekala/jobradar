@@ -294,3 +294,72 @@ def finish_run(run_id: int, payload: RunFinish) -> dict[str, Any]:
             raise HTTPException(status_code=409, detail="Suchlauf wurde bereits abgeschlossen")
         row = db.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
     return dict(row)
+
+
+class SourceUpdate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+    name: str = Field(min_length=1, max_length=200)
+    source_type: Literal["web", "api", "email", "manual"] = "web"
+    base_url: str | None = Field(default=None, max_length=2000)
+    enabled: bool = True
+    queries: list[str] = Field(default_factory=list, max_length=100)
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+@app.get("/api/sources")
+def list_sources() -> dict[str, Any]:
+    with connect() as db:
+        rows = db.execute(
+            "SELECT * FROM job_sources ORDER BY enabled DESC, name COLLATE NOCASE"
+        ).fetchall()
+    return {
+        "items": [
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "source_type": row["source_type"],
+                "base_url": row["base_url"],
+                "enabled": bool(row["enabled"]),
+                "queries": json.loads(row["query_json"]),
+                "config": json.loads(row["config_json"]),
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            }
+            for row in rows
+        ]
+    }
+
+
+@app.put("/api/sources/{source_id}")
+def save_source(source_id: str, payload: SourceUpdate) -> dict[str, Any]:
+    if not source_id.strip() or len(source_id) > 100:
+        raise HTTPException(status_code=400, detail="Ungültige Quellen-ID")
+    updated = now_iso()
+    with connect() as db:
+        db.execute(
+            """INSERT INTO job_sources
+            (id, name, source_type, base_url, enabled, query_json, config_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+            name=excluded.name, source_type=excluded.source_type, base_url=excluded.base_url,
+            enabled=excluded.enabled, query_json=excluded.query_json,
+            config_json=excluded.config_json, updated_at=excluded.updated_at""",
+            (
+                source_id, payload.name, payload.source_type, payload.base_url,
+                int(payload.enabled), json.dumps(payload.queries, ensure_ascii=False),
+                json.dumps(payload.config, ensure_ascii=False), updated, updated,
+            ),
+        )
+    return {
+        "id": source_id,
+        **payload.model_dump(),
+        "updated_at": updated,
+    }
+
+
+@app.delete("/api/sources/{source_id}", status_code=204)
+def delete_source(source_id: str) -> None:
+    with connect() as db:
+        cursor = db.execute("DELETE FROM job_sources WHERE id = ?", (source_id,))
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Quelle nicht gefunden")
