@@ -133,3 +133,56 @@ def test_missing_job_returns_404(tmp_path, monkeypatch):
         assert client.patch("/api/jobs/not-there", json={"status": "gemerkt"}).status_code == 404
     finally:
         client.__exit__(None, None, None)
+
+
+
+def test_overview_and_search_run_lifecycle(tmp_path, monkeypatch):
+    client, _ = client_for(tmp_path, monkeypatch)
+    try:
+        created = client.post("/api/jobs", json={
+            "title": "Platform Engineer",
+            "company": "Muster GmbH",
+            "score": 91,
+        })
+        assert created.status_code == 201
+
+        run = client.post("/api/runs", json={})
+        assert run.status_code == 201
+        run_id = run.json()["id"]
+        assert run.json()["status"] == "running"
+
+        finished = client.post(f"/api/runs/{run_id}/finish", json={
+            "status": "success",
+            "jobs_found": 12,
+            "jobs_new": 3,
+        })
+        assert finished.status_code == 200
+        assert finished.json()["jobs_found"] == 12
+        assert finished.json()["status"] == "success"
+
+        overview = client.get("/api/overview")
+        assert overview.status_code == 200
+        assert overview.json()["jobs_total"] == 1
+        assert overview.json()["jobs_by_status"]["neu"] == 1
+        assert overview.json()["average_score"] == 91.0
+        assert overview.json()["latest_run"]["id"] == run_id
+
+        runs = client.get("/api/runs")
+        assert runs.status_code == 200
+        assert runs.json()["items"][0]["id"] == run_id
+
+        duplicate_finish = client.post(f"/api/runs/{run_id}/finish", json={
+            "status": "success",
+        })
+        assert duplicate_finish.status_code == 409
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_finish_unknown_run_returns_404(tmp_path, monkeypatch):
+    client, _ = client_for(tmp_path, monkeypatch)
+    try:
+        response = client.post("/api/runs/999/finish", json={"status": "failed"})
+        assert response.status_code == 404
+    finally:
+        client.__exit__(None, None, None)
