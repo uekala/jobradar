@@ -24,7 +24,7 @@ Der Jobradar läuft lokal auf Home Assistant Green und benötigt für den tägli
 
 ## Persistenz
 
-Die Datenbank liegt unter /data/jobradar.db. Home Assistant stellt den Add-on-Datenbereich persistent bereit. Backups müssen später zusätzlich über die Home-Assistant-Backup-Funktion und einen getesteten Export abgesichert werden.
+Die Datenbank liegt unter /data/jobradar.db. Home Assistant stellt /data als persistenten Add-on-Datenbereich automatisch bereit; dafür ist kein zusätzlicher map-Eintrag nötig. Backups müssen später zusätzlich über die Home-Assistant-Backup-Funktion und einen getesteten Export abgesichert werden.
 
 ## Datenmodell – erster Entwurf
 
