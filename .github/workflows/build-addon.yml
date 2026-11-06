@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ha-green-foundation
+      - consolidate-legacy-integration
   pull_request:
   workflow_dispatch:
 
