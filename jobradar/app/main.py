@@ -189,7 +189,7 @@ def get_job(job_id: str) -> dict[str, Any]:
         })
 
     job["score_breakdown"] = breakdown
-    job["base_score"] = evaluation["score"]
+    job["calculated_base_score"] = evaluation["score"]
     job["learning_adjustment"] = learning_adjustment
     return job
 
