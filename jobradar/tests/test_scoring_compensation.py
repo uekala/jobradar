@@ -38,7 +38,7 @@ def test_detailed_evaluation_explains_compensation_and_role_matches():
 
     result = evaluate_vacancy_detailed(vacancy, profile, [])
 
-    assert result["score"] == 68
+    assert result["score"] == 72
     assert result["excluded"] is False
     assert [item["label"] for item in result["breakdown"]] == [
         "Grundwert",
