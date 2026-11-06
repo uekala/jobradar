@@ -1,10 +1,9 @@
-ARG BUILD_FROM=python:3.12-slim-bookworm
-FROM ${BUILD_FROM}
+FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
 COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+RUN python -m pip install --no-cache-dir -r /app/requirements.txt
 
 COPY app/ /app/app/
 
