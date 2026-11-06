@@ -1,48 +1,64 @@
-# Jobradar – eigenständiger Betrieb
+# Jobradar – zentrale Plattform
 
-Dieses Repository entwickelt den persönlichen Jobradar schrittweise von der bisherigen Claude-Artifact-Lösung zu einer eigenständigen Anwendung weiter.
+Dieses Repository bündelt die bisherigen Jobradar-Bestandteile in einem gemeinsamen Projekt:
 
-**Zielbetrieb:** Home Assistant Green (ARM64), Zugriff im Heimnetz und unterwegs ausschließlich über die bestehende VPN-Verbindung.
+- **Home-Assistant-Integration** unter `custom_components/jobradar/` (bisheriges HACS-/Custom-Component-Projekt).
+- **Eigenständiger Jobradar-Dienst** unter `jobradar/` (FastAPI, SQLite und Home-Assistant-Add-on).
+- **Gemeinsame Qualitätssicherung** über GitHub Actions, Integrationstests und Add-on-Build.
+- **Dokumentation und Archiv** unter `docs/` und `archive/`.
 
-**Keine KI im Regelbetrieb:** Suche, Dublettenerkennung, Bewertung, Speicherung und Tagesbericht sollen deterministisch mit Python laufen. KI bleibt optional und wird nicht für tägliche Suchläufe benötigt.
+## Zielarchitektur
 
-## Projektbereiche
+Beide Betriebsarten bleiben während der Konsolidierung zunächst getrennt ausführbar. Die bestehende Home-Assistant-Integration und der neue eigenständige Dienst teilen vorerst noch nicht automatisch ihre Laufzeit oder Datenbank. Gemeinsame Bewertungs- und Suchlogik wird erst nach fachlichem und technischem Abgleich zusammengeführt.
 
-- index.html und archive/: bisherige Claude-Artifact-Oberfläche und Archiv; bleiben vorerst als Referenz erhalten.
-- jobradar/: eigenständiger Home-Assistant-Add-on-Dienst (FastAPI + SQLite).
-- .github/workflows/: automatisierte Tests und ARM64-Build-Prüfung.
-- docs/: Architektur- und Betriebsdokumentation.
+## Projektstruktur
 
-## Entwicklungsstand
+- `custom_components/jobradar/`: bisherige Home-Assistant-Integration.
+- `jobradar/app/`: FastAPI-Anwendung und SQLite-Persistenz.
+- `jobradar/tests/`: Tests des eigenständigen Dienstes.
+- `tests/`: Tests der Home-Assistant-Integration.
+- `docs/`: Architektur- und Betriebsdokumentation.
+- `archive/`: bisherige Claude-Artifact-Referenzen.
 
-Branch ha-green-foundation enthält das erste technische Grundgerüst:
-- Home-Assistant-Add-on-Manifest für ARM64.
-- FastAPI-Anwendung mit Health- und Meta-Endpunkt.
-- SQLite-Schema mit persistentem Datenpfad /data/jobradar.db.
-- GitHub-Actions-Workflow für Python-Tests.
-- ARM64-Docker-Build-Prüfung ohne Veröffentlichung eines Images.
+## Entwicklung und Tests
 
-**Noch nicht produktiv:** Es gibt noch keine Suchquellen, keinen Scheduler, keine fertige Dashboard-Anbindung und keine Datenmigration. Die Claude-Version und deren Datenbank bleiben bis zur abgeschlossenen Migration unverändert.
+### Eigenständiger Dienst
 
-## Lokal testen
+Im Verzeichnis `jobradar`:
 
-Im Verzeichnis jobradar ausführen:
+```bash
+python -m pip install -r requirements.txt -r requirements-dev.txt
+pytest -q
+```
 
-    python -m pip install -r requirements.txt -r requirements-dev.txt
-    pytest -q
+### Home-Assistant-Integration
+
+Im Repository-Root:
+
+```bash
+python -m pip install -r requirements_test.txt
+python tools/check_versions.py
+ruff check .
+ruff format --check .
+pytest -q
+```
+
+GitHub Actions prüft die Integration, den eigenständigen Dienst und den ARM64-Add-on-Build.
 
 ## Home Assistant Green
 
-Das Repository ist privat. Deshalb wird es vorerst **nicht** als öffentliches Home-Assistant-Add-on-Repository eingebunden und es werden keine Zugangsdaten oder Repository-Rechte offengelegt.
+Der eigenständige Dienst ist für Home Assistant OS auf ARM64 vorgesehen. Er verwendet FastAPI, SQLite und Home-Assistant-Ingress. Seine Datenbank liegt persistent unter `/data/jobradar.db`.
 
-Für die spätere Installation wird ausschließlich der Ordner jobradar/ als lokales Add-on nach /addons/jobradar/ auf Home Assistant OS übertragen. Da in config.yaml kein Remote-Image hinterlegt ist, baut Home Assistant das Add-on lokal aus dem Dockerfile für ARM64.
+Die bestehende Integration bleibt bis zur abgeschlossenen Migration verfügbar. Es erfolgt keine automatische Änderung an vorhandenen Home-Assistant-Installationen oder Datenbanken.
 
-Die Installation erfolgt erst nach erfolgreichem Test und ausdrücklicher Freigabe. Das Grundgerüst jetzt noch nicht auf dem produktiven Home Assistant installieren.
+## Datenmigration und Sicherheit
 
-## Sicherheit und Daten
+- Die bisherige Claude-Artifact-Datenbank bleibt unangetastet, bis Export, Mapping, Trockenlauf und Import geprüft sind.
+- Die bestehende Jobradar-Integration wird nicht automatisch deinstalliert oder ersetzt.
+- Produktionsdaten, Secrets, Tokens und private Schlüssel gehören nicht ins Repository.
+- Test- und Produktionsdatenbanken bleiben getrennt.
+- Keine Installation, Aktivierung oder Migration auf dem produktiven Home Assistant ohne ausdrückliche Freigabe.
 
-- SQLite-Datei liegt im persistenten Add-on-Verzeichnis /data.
-- Keine Ports werden öffentlich freigegeben.
-- Der Zugriff ist für Home Assistant Ingress vorgesehen; unterwegs erfolgt er über VPN zum Heimnetz.
-- Keine Tokens, Passwörter oder persönlichen Bewerbungsdaten gehören ins Git-Repository.
-- Die vorhandene Claude-Datenbank wird nicht automatisch verändert oder migriert.
+## Konsolidierungsstatus
+
+Die bisherige Integration wurde in den Konsolidierungszweig übernommen. Noch ausstehend sind die vollständige CI-Prüfung, die Prüfung gemeinsamer Abhängigkeiten und die fachliche Konsolidierung doppelter Bewertungs- und Suchfunktionen.
