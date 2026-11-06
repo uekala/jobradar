@@ -1,0 +1,6 @@
+{
+  "name": "Jobradar",
+  "homeassistant": "2025.2.0",
+  "country": ["DE"],
+  "render_readme": true
+}
