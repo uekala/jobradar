@@ -1,0 +1,19 @@
+name: Jobradar
+version: "0.1.0"
+slug: jobradar
+description: "Eigenständiger, lokaler Jobradar für Home Assistant Green"
+url: https://github.com/uekala/claude-jobradar
+arch:
+  - aarch64
+startup: application
+boot: auto
+init: false
+ingress: true
+ingress_port: 8099
+panel_icon: mdi:briefcase-search
+panel_title: Jobradar
+map:
+  - data:rw
+options: {}
+schema: {}
+image: ghcr.io/uekala/{arch}-addon-jobradar
