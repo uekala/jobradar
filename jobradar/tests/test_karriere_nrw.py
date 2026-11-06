@@ -51,3 +51,49 @@ def test_search_fetches_details_and_normalizes_vacancy(monkeypatch):
     assert len(requested) == 2
     assert "ort=Krefeld" in requested[0]
     assert "umkreis=4" in requested[0]
+
+
+def test_search_run_persists_vacancies_and_updates_existing_without_resetting_status(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    db_file = tmp_path / "search.sqlite3"
+    monkeypatch.setenv("JOBRADAR_DB_PATH", str(db_file))
+    client = TestClient(app)
+    vacancy = {
+        "id": "karriere-nrw:abc-123",
+        "title": "Linux Systemadministrator",
+        "company": "Land NRW",
+        "location": "Düsseldorf",
+        "url": "https://example.org/job",
+        "source": "Karriere.NRW",
+        "description": "Linux VMware",
+        "published_at": "2026-11-01",
+        "raw": {"uuid": "abc-123"},
+    }
+    monkeypatch.setattr("app.main.search_vacancies", lambda **kwargs: [vacancy])
+    with client:
+        client.put("/api/profile", json={"data": {"location": "Krefeld", "radius_km": 50, "roles": ["Linux Admin"]}})
+        client.put("/api/sources/karriere-nrw", json={
+            "name": "Karriere.NRW",
+            "source_type": "api",
+            "enabled": True,
+            "queries": ["Linux Admin"],
+            "config": {},
+        })
+
+        first = client.post("/api/search/run")
+        assert first.status_code == 200
+        assert first.json()["run"]["status"] == "success"
+        assert first.json()["run"]["jobs_found"] == 1
+        assert first.json()["run"]["jobs_new"] == 1
+        job = client.get("/api/jobs/karriere-nrw:abc-123").json()
+        assert job["title"] == "Linux Systemadministrator"
+
+        client.patch("/api/jobs/karriere-nrw:abc-123", json={"status": "gemerkt", "notes": "Interessant"})
+        second = client.post("/api/search/run")
+        assert second.status_code == 200
+        assert second.json()["run"]["jobs_new"] == 0
+        updated = client.get("/api/jobs/karriere-nrw:abc-123").json()
+        assert updated["status"] == "gemerkt"
+        assert updated["notes"] == "Interessant"
