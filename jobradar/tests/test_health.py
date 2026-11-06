@@ -280,8 +280,11 @@ def test_feedback_adjusts_similar_job_scores_without_compounding(tmp_path, monke
         }).json()
         response = client.patch(f"/api/jobs/{liked['id']}", json={"status": "gemerkt"})
         assert response.status_code == 200
-        boosted = client.get(f"/api/jobs/{candidate['id']}").json()["score"]
+        boosted_detail = client.get(f"/api/jobs/{candidate['id']}").json()
+        boosted = boosted_detail["score"]
         assert boosted > 60
+        assert sum(item["points"] for item in boosted_detail["score_breakdown"]) == boosted
+        assert boosted_detail["learning_adjustment"] == boosted - boosted_detail["base_score"]
         client.patch(f"/api/jobs/{discarded['id']}", json={"status": "verworfen"})
         assert client.get(f"/api/jobs/{candidate['id']}").json()["score"] == boosted
         client.patch(f"/api/jobs/{liked['id']}", json={"status": "neu"})
