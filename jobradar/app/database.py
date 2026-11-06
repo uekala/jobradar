@@ -106,4 +106,4 @@ def database_is_ready(db_path: str | None = None) -> bool:
         row = db.execute(
             "SELECT value FROM schema_meta WHERE key = 'schema_version'"
         ).fetchone()
-        return row is not None and row["value"] == "1"
+        return row is not None and int(row["value"]) >= 2
