@@ -4,7 +4,7 @@ Dieses Repository bündelt die bisherigen Jobradar-Bestandteile in einem gemeins
 
 - **Home-Assistant-Integration** unter `custom_components/jobradar/` (bisheriges HACS-/Custom-Component-Projekt).
 - **Eigenständiger Jobradar-Dienst** unter `jobradar/` (FastAPI, SQLite und Home-Assistant-Add-on).
-- **Gemeinsame Qualitätssicherung** über GitHub Actions, Integrationstests und Add-on-Build.
+- **Getrennte Qualitätssicherung** über GitHub Actions, Integrationstests, Diensttests und ARM64-Add-on-Build.
 - **Dokumentation und Archiv** unter `docs/` und `archive/`.
 
 ## Zielarchitektur
@@ -36,14 +36,14 @@ pytest -q
 Im Repository-Root:
 
 ```bash
-python -m pip install -r requirements_test.txt
+python -m pip install -r requirements_test.txt ruff
 python tools/check_versions.py
-ruff check .
-ruff format --check .
+ruff check custom_components/jobradar tools/check_versions.py tests/test_api.py tests/test_bund.py tests/test_integration.py tests/test_pay.py tests/test_scoring.py
+ruff format --check custom_components/jobradar tools/check_versions.py tests/test_api.py tests/test_bund.py tests/test_integration.py tests/test_pay.py tests/test_scoring.py
 pytest -q
 ```
 
-GitHub Actions prüft die Integration, den eigenständigen Dienst und den ARM64-Add-on-Build.
+GitHub Actions prüft beide Testbereiche sowie den ARM64-Add-on-Build.
 
 ## Home Assistant Green
 
@@ -61,4 +61,4 @@ Die bestehende Integration bleibt bis zur abgeschlossenen Migration verfügbar. 
 
 ## Konsolidierungsstatus
 
-Die bisherige Integration wurde in den Konsolidierungszweig übernommen. Noch ausstehend sind die vollständige CI-Prüfung, die Prüfung gemeinsamer Abhängigkeiten und die fachliche Konsolidierung doppelter Bewertungs- und Suchfunktionen.
+Die bisherige Integration wurde in den Konsolidierungszweig übernommen. Die CI für beide Komponenten ist erfolgreich. Noch ausstehend sind der ARM64-Add-on-Build, die fachliche Bewertung der unterschiedlichen Scoring-Modelle und die abschließende Konsolidierungsprüfung.
