@@ -51,8 +51,9 @@ def test_database_schema_and_version(tmp_path):
             "SELECT value FROM schema_meta WHERE key = 'schema_version'"
         ).fetchone()
     assert {"schema_meta", "jobs", "runs", "profile", "search_rules"} <= tables
-    assert version["value"] == "2"
+    assert version["value"] == "3"
     assert "job_sources" in tables
+    assert "base_score" in {row["name"] for row in connect(str(db_file)).execute("PRAGMA table_info(jobs)")}
 
 
 def test_profile_survives_reinitialization(tmp_path):
@@ -255,5 +256,36 @@ def test_existing_version_one_database_is_upgraded_without_data_loss(tmp_path):
         sources = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='job_sources'").fetchone()
     assert job["title"] == "Vorhandene Stelle"
     assert job["status"] == "gemerkt"
-    assert version["value"] == "2"
+    assert version["value"] == "3"
     assert sources is not None
+
+
+def test_feedback_adjusts_similar_job_scores_without_compounding(tmp_path, monkeypatch):
+    client, _ = client_for(tmp_path, monkeypatch)
+    try:
+        liked = client.post("/api/jobs", json={
+            "title": "Linux Systemadministrator",
+            "description": "VMware Windows Server Betrieb",
+            "score": 70,
+        }).json()
+        candidate = client.post("/api/jobs", json={
+            "title": "Linux Administrator",
+            "description": "VMware Infrastruktur",
+            "score": 60,
+        }).json()
+        discarded = client.post("/api/jobs", json={
+            "title": "Windows Entwickler",
+            "description": "Softwareentwicklung",
+            "score": 80,
+        }).json()
+        response = client.patch(f"/api/jobs/{liked['id']}", json={"status": "gemerkt"})
+        assert response.status_code == 200
+        boosted = client.get(f"/api/jobs/{candidate['id']}").json()["score"]
+        assert boosted > 60
+        client.patch(f"/api/jobs/{discarded['id']}", json={"status": "verworfen"})
+        assert client.get(f"/api/jobs/{candidate['id']}").json()["score"] == boosted
+        client.patch(f"/api/jobs/{liked['id']}", json={"status": "neu"})
+        reset = client.get(f"/api/jobs/{candidate['id']}").json()["score"]
+        assert reset == 60
+    finally:
+        client.__exit__(None, None, None)
