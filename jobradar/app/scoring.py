@@ -17,12 +17,16 @@ def _terms(value: Any) -> list[str]:
     return []
 
 
+def _eg_level(value: str) -> int | None:
+    match = re.search(r"\b(?:eg|e)\s*(\d{1,2})\b", value.casefold())
+    return int(match.group(1)) if match else None
+
+
 def evaluate_vacancy(vacancy: dict[str, Any], profile: dict[str, Any], rules: list[dict[str, Any]]) -> tuple[int, bool]:
-    """Return (0..100 score, excluded). Unknown salary/public-sector data is neutral."""
+    """Return (0..100 score, excluded). Missing salary/tariff data stays neutral."""
     haystack = " ".join(_text(vacancy.get(key)) for key in ("title", "company", "location", "description"))
     company = _text(vacancy.get("company"))
-    exclusions = _terms(profile.get("exclusions"))
-    if any(term.casefold() in company for term in exclusions):
+    if any(term.casefold() in company for term in _terms(profile.get("exclusions"))):
         return 0, True
 
     roles = _terms(profile.get("roles"))
@@ -31,11 +35,19 @@ def evaluate_vacancy(vacancy: dict[str, Any], profile: dict[str, Any], rules: li
     skill_hits = sum(1 for term in skills if term.casefold() in haystack)
     score = 40 + min(40, role_hits * 12) + min(24, skill_hits * 4)
 
-    minimum = _text(profile.get("public_service_minimum"))
-    if minimum:
-        markers = ("tvöd", "tv-l", "besoldung", "beamtenverhältnis", "tarifbeschäftigte")
-        if any(marker in haystack for marker in markers):
+    target_salary = profile.get("salary_min")
+    actual_min = vacancy.get("salary_min")
+    actual_max = vacancy.get("salary_max")
+    if isinstance(target_salary, (int, float)) and target_salary > 0:
+        if isinstance(actual_min, (int, float)) and actual_min >= target_salary:
             score += 8
+        elif isinstance(actual_max, (int, float)) and actual_max < target_salary:
+            score -= 8
+
+    target_grade = _eg_level(_text(profile.get("public_service_minimum")))
+    vacancy_grade = _eg_level(haystack)
+    if target_grade is not None and vacancy_grade is not None:
+        score += 8 if vacancy_grade >= target_grade else -8
 
     for rule in rules:
         if rule.get("enabled") is False:
