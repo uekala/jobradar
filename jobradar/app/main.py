@@ -474,7 +474,7 @@ def run_enabled_search() -> dict[str, Any]:
                             """INSERT INTO jobs
                             (id,title,company,location,url,source,description,score,base_score,status,notes,
                              published_at,first_seen_at,last_seen_at,created_at,updated_at,raw_json)
-                            VALUES (?,?,?,?,?,?,?,NULL,NULL,'neu','',?,?,?,?,?,?)""",
+                            VALUES (?,?,?,?,?,?,?,?,?,'neu','',?,?,?,?,?,?)""",
                             (
                                 vacancy["id"], vacancy["title"], vacancy["company"],
                                 vacancy["location"], vacancy["url"], vacancy["source"],
