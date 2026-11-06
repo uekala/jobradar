@@ -1,0 +1,19 @@
+{
+  "entity": {
+    "sensor": {
+      "new_jobs": { "default": "mdi:briefcase-plus" },
+      "matching_jobs": { "default": "mdi:briefcase-search" },
+      "last_search": { "default": "mdi:clock-check-outline" }
+    },
+    "button": {
+      "mark_read": { "default": "mdi:check-all" },
+      "search_now": { "default": "mdi:magnify" }
+    }
+  },
+  "services": {
+    "search": { "service": "mdi:magnify" },
+    "hide": { "service": "mdi:eye-off" },
+    "mark_read": { "service": "mdi:check-all" },
+    "reset": { "service": "mdi:restart" }
+  }
+}
