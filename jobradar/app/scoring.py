@@ -18,7 +18,7 @@ def _terms(value: Any) -> list[str]:
 
 
 def _eg_level(value: str) -> int | None:
-    match = re.search(r"\\b(?:eg|e)\\s*(\\d{1,2})\\b", value.casefold())
+    match = re.search(r"\b(?:eg|e)\s*(\d{1,2})\b", value.casefold())
     return int(match.group(1)) if match else None
 
 
