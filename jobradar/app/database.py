@@ -76,13 +76,27 @@ def initialize_database(db_path: str | None = None) -> None:
                 updated_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS job_sources (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                source_type TEXT NOT NULL DEFAULT 'web',
+                base_url TEXT,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                query_json TEXT NOT NULL DEFAULT '[]',
+                config_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_job_sources_enabled ON job_sources(enabled);
+
             CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
             CREATE INDEX IF NOT EXISTS idx_jobs_score ON jobs(score);
             CREATE INDEX IF NOT EXISTS idx_jobs_first_seen ON jobs(first_seen_at);
 
             INSERT INTO schema_meta(key, value)
-            VALUES ('schema_version', '1')
-            ON CONFLICT(key) DO NOTHING;
+            VALUES ('schema_version', '2')
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value;
             """
         )
 
