@@ -51,7 +51,8 @@ def test_database_schema_and_version(tmp_path):
             "SELECT value FROM schema_meta WHERE key = 'schema_version'"
         ).fetchone()
     assert {"schema_meta", "jobs", "runs", "profile", "search_rules"} <= tables
-    assert version["value"] == "1"
+    assert version["value"] == "2"
+    assert "job_sources" in tables
 
 
 def test_profile_survives_reinitialization(tmp_path):
@@ -201,3 +202,58 @@ def test_dashboard_is_responsive_and_uses_api(tmp_path, monkeypatch):
         assert "max-width:600px" in response.text
     finally:
         client.__exit__(None, None, None)
+
+
+
+def test_source_registry_create_update_list_delete(tmp_path, monkeypatch):
+    client, _ = client_for(tmp_path, monkeypatch)
+    try:
+        source = {
+            "name": "Arbeitsagentur",
+            "source_type": "api",
+            "base_url": "https://www.arbeitsagentur.de/jobsuche/",
+            "enabled": True,
+            "queries": ["Systemadministrator", "Linux Administrator"],
+            "config": {"region": "Krefeld"},
+        }
+        saved = client.put("/api/sources/arbeitsagentur", json=source)
+        assert saved.status_code == 200
+        assert saved.json()["name"] == "Arbeitsagentur"
+
+        listed = client.get("/api/sources")
+        assert listed.status_code == 200
+        assert listed.json()["items"][0]["queries"] == source["queries"]
+
+        source["enabled"] = False
+        updated = client.put("/api/sources/arbeitsagentur", json=source)
+        assert updated.status_code == 200
+        assert updated.json()["enabled"] is False
+
+        deleted = client.delete("/api/sources/arbeitsagentur")
+        assert deleted.status_code == 204
+        assert client.get("/api/sources").json()["items"] == []
+        assert client.delete("/api/sources/missing").status_code == 404
+    finally:
+        client.__exit__(None, None, None)
+
+
+def test_existing_version_one_database_is_upgraded_without_data_loss(tmp_path):
+    from app.database import initialize_database
+
+    db_file = tmp_path / "legacy.sqlite3"
+    initialize_database(str(db_file))
+    with connect(str(db_file)) as db:
+        db.execute(
+            "INSERT INTO jobs (id,title,status,first_seen_at,last_seen_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?)",
+            ("legacy-1", "Vorhandene Stelle", "gemerkt", "2026-11-01", "2026-11-01", "2026-11-01", "2026-11-01"),
+        )
+        db.execute("UPDATE schema_meta SET value = '1' WHERE key = 'schema_version'")
+    initialize_database(str(db_file))
+    with connect(str(db_file)) as db:
+        job = db.execute("SELECT title,status FROM jobs WHERE id='legacy-1'").fetchone()
+        version = db.execute("SELECT value FROM schema_meta WHERE key='schema_version'").fetchone()
+        sources = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='job_sources'").fetchone()
+    assert job["title"] == "Vorhandene Stelle"
+    assert job["status"] == "gemerkt"
+    assert version["value"] == "2"
+    assert sources is not None
