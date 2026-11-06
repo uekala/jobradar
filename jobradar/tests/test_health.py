@@ -344,6 +344,8 @@ def test_dashboard_exposes_manual_search_control(tmp_path, monkeypatch):
         response = client.get("/")
         assert response.status_code == 200
         assert 'id="run-search"' in response.text
+        assert 'id="add-karriere-source"' in response.text
+        assert 'api/sources/karriere-nrw' in response.text
         assert 'api/search/run' in response.text
         assert "karriere-nrw" in response.text
     finally:
