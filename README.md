@@ -1,128 +1,83 @@
-# Jobradar
+# Jobradar – zentrale Plattform
 
-Jobradar sucht in Home Assistant regelmäßig nach neuen Stellen in der [Jobbörse der Bundesagentur für Arbeit](https://www.arbeitsagentur.de/jobsuche/) und bei [service.bund.de](https://www.service.bund.de/Content/DE/Stellen/Suche/Formular.html) (öffentlicher Dienst von Bund, Ländern und Kommunen), bewertet sie nach deinem Profil und meldet passende sofort aufs Handy – mit Knöpfen zum Öffnen und Ausblenden.
+Dieses private Repository bündelt die bisherigen Jobradar-Bestandteile und hält die bestehenden Betriebsarten während der Konsolidierung getrennt.
 
-## Was es macht
+## Bestandteile
 
-- **Sucht** alle 30 Minuten (einstellbar) nach jedem deiner Suchbegriffe: im Umkreis deines Orts und auf Wunsch zusätzlich nach Homeoffice-Stellen in ganz Deutschland.
-- **Fragt service.bund.de** höchstens alle zwei Stunden über den RSS-Feed, den die Seite für jede Stellensuche anbietet, im selben Umkreis. Dieselbe Stelle aus beiden Quellen wird nur einmal gemeldet; die Meldung nennt die Bewerbungsfrist.
-- **Bewertet** jede neue Stelle mit 0 bis 100 Punkten: passende Rolle im Titel, deine Fähigkeiten in Titel und Beschreibung, Homeoffice und Nähe.
-- **Filtert** Ausbildung, Praktika, Werkstudentenstellen, Zeitarbeit und Arbeitgeber, die du ausschließt – zum Beispiel deinen jetzigen.
-- **Meldet** neue Stellen ab einer Mindestpunktzahl einzeln, höchstens fünf pro Suche; der Rest kommt als Sammelmeldung. In der Ruhezeit (Vorgabe 22 bis 7 Uhr) bleibt das Handy still; was nachts dazukommt, kommt morgens gesammelt.
-- **Lernt** aus „Nicht interessant“: Arbeitgeber, deren Stellen du zweimal ausgeblendet hast, verlieren bei neuen Stellen 20 Punkte.
-- **Räumt auf**: Einmal am Tag fliegen Stellen aus der Liste, deren Bewerbungsfrist vorbei ist oder die die Jobbörse gelöscht hat. Dieselbe Stelle gilt auch dann als Dublette, wenn sich der Titel nur in „(m/w/d)“ oder einem angehängten Ort unterscheidet.
-- **Merkt sich**, was schon gemeldet oder ausgeblendet wurde – auch über Neustarts hinweg.
+- **Home-Assistant-Integration** unter `custom_components/jobradar/` (bisheriges HACS-/Custom-Component-Projekt).
+- **Eigenständiger Jobradar-Dienst** unter `jobradar/` (FastAPI, SQLite und Home-Assistant-Add-on).
+- **Claude-Artifact-Übersichtsseite** als versionierte Quelldatei `uebersichtsseite.html`; die Live-Datenbank und geplanten Claude-Aufgaben bleiben vorerst in Claude.
+- **Dokumentation und Archiv** unter `docs/` und `archive/`.
 
-## Installation über HACS
+## Zielarchitektur und Grenzen
 
-1. HACS → ⋮ → **Benutzerdefinierte Repositories**
-2. `https://github.com/uekala/jobradar` als Kategorie **Integration** hinzufügen
-3. **Jobradar** installieren und Home Assistant neu starten
-4. Einstellungen → Geräte & Dienste → **Integration hinzufügen** → Jobradar
+Das langfristige Ziel ist eine zentrale, lokal betriebene Jobradar-Anwendung auf Home Assistant Green. Die bestehende Home-Assistant-Integration und der neue eigenständige Dienst teilen während der Konsolidierung zunächst weder Laufzeit noch Datenbank. Auch das Claude-Artifact bleibt bis zu einer separat geprüften Migration ein eigener Datenbestand.
 
-## Einrichtung
+Die Bewertungslogik der alten Integration und des neuen Dienstes unterscheidet sich. Sie wird nicht blind vereinheitlicht; eine fachliche Entscheidung und Regressionstests sind Voraussetzung.
 
-| Feld | Bedeutung |
-|------|-----------|
-| Ort, Umkreis | Wo du arbeiten möchtest. Leer lassen für reine Homeoffice-Suche. |
-| Homeoffice bundesweit | Sucht zusätzlich Stellen mit Heim- oder Telearbeit, unabhängig vom Ort. |
-| Suchbegriffe | Jeder Begriff ist eine eigene Suche, z. B. *Systemadministrator, VMware, Cloud Engineer*. |
-| Fähigkeiten | Bringen Punkte, wenn sie im Titel (10) oder in der Beschreibung (5) stehen. |
-| Arbeitgeber ausschließen | Ein Teil des Namens genügt. |
-| Mindestpunktzahl | Ab hier wird gemeldet. Vorgabe 50 – das entspricht einer passenden Rolle im Titel. |
-| Benachrichtigen über | Ein `notify`-Dienst, z. B. die Companion-App. Ohne Auswahl erscheint eine Benachrichtigung in Home Assistant. |
+## Projektstruktur
 
-In den Optionen lassen sich außerdem Abwertungen (z. B. *Junior, Helpdesk*), Ausschlusswörter, Zeitarbeit und das Abfrageintervall einstellen, dazu:
+- `custom_components/jobradar/`: bisherige Home-Assistant-Integration.
+- `jobradar/app/`: FastAPI-Anwendung und SQLite-Persistenz.
+- `jobradar/tests/`: Tests des eigenständigen Dienstes.
+- `tests/`: Tests der Home-Assistant-Integration sowie Dashboard-Smoke-Test.
+- `uebersichtsseite.html`: versionierter Quellstand des Claude-Artifacts.
+- `index.html`: eigenständige Dashboard-Oberfläche des Dienstes.
+- `docs/`: Architektur- und Betriebsdokumentation.
+- `archive/`: archivierte ältere Übersichtsseite.
 
-| Option | Bedeutung |
-| --- | --- |
-| Gehaltsvorstellung (brutto pro Jahr) | Etwa jede fünfte Stelle der Jobbörse nennt ein Gehalt, als Spanne oder Festbetrag. Liegt auch das obere Ende darunter, verliert die Stelle 30 Punkte und wird in der Meldung markiert; passt es, gibt es 5 Punkte. 0 = nicht vergleichen. |
-| Mindest-Entgeltgruppe (TVöD/TV-L) | Für Stellen im öffentlichen Dienst, die statt Euro eine Entgelt- oder Besoldungsgruppe nennen (z. B. *E 11 TVöD*, *A 11*). Darunter: wie oben. 0 = nicht vergleichen. |
-| Ruhezeit ab / bis | Stunden (Ortszeit), in denen keine Push-Nachrichten kommen. Gleicher Wert = keine Ruhezeit. |
+## Entwicklung und Tests
 
-### So entstehen die Punkte
+### Eigenständiger Dienst
 
-| Merkmal | Punkte |
-|---------|--------|
-| Suchbegriff im Titel oder Beruf – oder Rollenwort wie *Administrator* zusammen mit einer deiner Fähigkeiten | 50 |
-| je Fähigkeit im Titel / in der Beschreibung | 10 / 5, zusammen höchstens 40 |
-| Homeoffice möglich | 5 |
-| höchstens 25 km Luftlinie entfernt | 5 |
-| je Abwertungswort im Titel | −25 |
-| Gehalt oder Entgeltgruppe passt zur Gehaltsvorstellung / liegt darunter | 5 / −30 |
-
-## Benachrichtigung
-
-Mit der Companion-App öffnet ein Tipp die Stelle bei der Bundesagentur. Zwei Knöpfe:
-
-- **Öffnen** – Stellenanzeige im Browser
-- **Nicht interessant** – blendet die Stelle dauerhaft aus
-
-Bei der ersten Suche schickt Jobradar nur eine Meldung mit der Zahl der passenden Stellen der letzten 14 Tage; danach meldet es jede neue einzeln.
-
-### Karte fürs Dashboard
-
-Eine Markdown-Karte zeigt die ungelesenen Stellen mit Link. Den Namen des Sensors (hier `sensor.jobradar_krefeld_neue_stellen`) an deinen anpassen:
-
-```yaml
-type: markdown
-title: Jobradar
-content: >-
-  {% set stellen = state_attr('sensor.jobradar_krefeld_neue_stellen', 'stellen') or [] %}
-  {% for s in stellen %}
-  **[{{ s.titel }}]({{ s.url }})**<br>
-  {{ s.arbeitgeber }} · {{ s.ort or 'Homeoffice' }}{% if s.entfernung_km %} · {{ s.entfernung_km | round(0) | int }} km{% endif %}{% if s.gehalt %} · {{ s.gehalt }}{% endif %}{% if s.bewerbungsfrist %} · bis {{ as_timestamp(s.bewerbungsfrist) | timestamp_custom('%d.%m.') }}{% endif %} · {{ s.punkte }} Punkte
-  {% else %}
-  Keine neuen Stellen.
-  {% endfor %}
-```
-
-## Entitäten, Aktionen, Ereignis
-
-| | |
-|---|---|
-| `sensor.…_neue_stellen` | Zahl der ungelesenen passenden Stellen; Attribut `stellen` mit Titel, Arbeitgeber, Ort, Entfernung, Gehalt (falls angegeben), Punkten, Treffern und Link |
-| `sensor.…_passende_stellen` | Alle passenden Stellen der letzten 30 Tage |
-| `sensor.…_letzte_suche` | Zeitpunkt und Ergebnis der letzten Suche |
-| `button.…_alle_als_gelesen_markieren`, `button.…_jetzt_suchen` | |
-| `jobradar.search`, `jobradar.hide`, `jobradar.mark_read`, `jobradar.reset` | Aktionen für Automationen |
-| Ereignis `jobradar_new_job` | Für jede neue passende Stelle, mit allen Angaben – etwa für eigene Meldungen per Telegram oder Sprachausgabe |
-
-### Dashboard-Karte
-
-```yaml
-type: markdown
-title: Neue Stellen
-content: >
-  {% for s in state_attr('sensor.jobradar_krefeld_neue_stellen', 'stellen') or [] %}
-  **[{{ s.titel }}]({{ s.url }})**<br>
-  {{ s.arbeitgeber }}, {{ s.ort }}{% if s.homeoffice %} (Homeoffice){% endif %}, {{ s.punkte }} Punkte
-  {% else %}
-  Keine neuen Stellen.
-  {% endfor %}
-```
-
-Die Entitäts-ID richtet sich nach dem Namen des Eintrags (hier *Jobradar Krefeld*).
-
-## Datenschutz
-
-Jobradar sendet nur deine Suchbegriffe, den Ort und den Umkreis an die Jobbörse der Bundesagentur und an service.bund.de. Profil, Fähigkeiten, ausgeschlossene Arbeitgeber und alle gefundenen Stellen bleiben in deinem Home Assistant. Die Diagnose blendet die Arbeitgeberliste aus.
-
-## Grenzen
-
-- Jobradar kennt die Jobbörse der Bundesagentur und service.bund.de. Dort stehen sehr viele, aber nicht alle Stellen – manche gibt es nur bei StepStone, LinkedIn, Interamt oder auf Karriereseiten. Diese Börsen bieten weder offene Schnittstelle noch Feed an, und Indeed und LinkedIn untersagen das automatische Auslesen ausdrücklich; Jobradar fragt sie deshalb nicht ab.
-- Bei Stellen von service.bund.de gibt es keine Detailansicht; bewertet wird der Titel, die Entfernung entfällt.
-- Die Schnittstelle ist öffentlich, aber nicht offiziell dokumentiert ([Community-Dokumentation](https://jobsuche.api.bund.dev/)). Jobradar probiert bekannte Pfade nacheinander und bewertet nur den Titel, wenn die Detailansicht fehlt.
-- Entfernungen sind Luftlinie vom Standort deines Home Assistant.
-
-## Entwicklung
+Im Verzeichnis `jobradar`:
 
 ```bash
-pip install -r requirements_test.txt ruff
-ruff check . && ruff format --check .
-pytest
+python -m pip install -r requirements.txt -r requirements-dev.txt
+pytest -q
 ```
 
-## Lizenz
+### Home-Assistant-Integration
 
-MIT – siehe [LICENSE](LICENSE). Kein Angebot der Bundesagentur für Arbeit.
+Im Repository-Root:
+
+```bash
+python -m pip install -r requirements_test.txt ruff
+python tools/check_versions.py
+ruff check custom_components/jobradar tools/check_versions.py tests/test_api.py tests/test_bund.py tests/test_integration.py tests/test_pay.py tests/test_scoring.py
+ruff format --check custom_components/jobradar tools/check_versions.py tests/test_api.py tests/test_bund.py tests/test_integration.py tests/test_pay.py tests/test_scoring.py
+pytest -q
+```
+
+### Claude-Artifact-Übersichtsseite
+
+Mit Node.js 22 oder neuer:
+
+```bash
+node --test tests/validate.mjs
+```
+
+GitHub Actions prüft die Integration, den eigenständigen Dienst, die Dashboard-Quelldatei, den Secret-Scan und den ARM64-Add-on-Build.
+
+## Home Assistant Green
+
+Der eigenständige Dienst ist für Home Assistant OS auf ARM64 vorgesehen. Er verwendet FastAPI, SQLite und Home-Assistant-Ingress. Seine Datenbank liegt persistent unter `/data/jobradar.db`.
+
+Die bestehende Integration bleibt bis zur abgeschlossenen Migration verfügbar. Es erfolgt keine automatische Änderung an vorhandenen Home-Assistant-Installationen oder Datenbanken.
+
+## Claude-Artifact und Datenschutz
+
+Die Live-Suche und die Datenbank der bisherigen Claude-Artifact-Übersichtsseite laufen weiterhin in Claude. Das Repository enthält nur den versionierten Quelltext, nicht die Live-Datenbank. Änderungen an `uebersichtsseite.html` aktualisieren das Live-Artifact nicht automatisch; sie müssen separat veröffentlicht werden.
+
+Das Repository bleibt privat. Suchprofil, konkrete Stellen, Notizen, Lernregeln und Laufdaten gehören nicht in Quelldateien oder Commits. Keine Zugangsdaten, Tokens oder privaten Schlüssel einchecken.
+
+## Datenmigration und Sicherheit
+
+- Die bisherige Claude-Artifact-Datenbank bleibt unangetastet, bis Export, Mapping, Trockenlauf und Import geprüft sind.
+- Die bestehende Jobradar-Integration wird nicht automatisch deinstalliert oder ersetzt.
+- Test- und Produktionsdatenbanken bleiben getrennt.
+- Keine Installation, Aktivierung oder Migration auf dem produktiven Home Assistant ohne ausdrückliche Freigabe.
+
+## Konsolidierungsstatus
+
+Die bisherige Integration wurde in diesen Konsolidierungszweig übernommen. Die CI-Prüfungen einschließlich ARM64-Add-on-Build sind erfolgreich. Noch ausstehend sind die abschließende Konflikt- und Konsolidierungsprüfung sowie eine fachliche Entscheidung zum Umgang mit den unterschiedlichen Scoring-Modellen.
