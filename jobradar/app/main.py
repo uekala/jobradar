@@ -36,7 +36,7 @@ def dashboard_placeholder() -> str:
           <h1>Jobradar</h1>
           <p>Der eigenständige Jobradar-Dienst läuft.</p>
           <p>Das Dashboard wird in einer späteren Phase angebunden.</p>
-          <p><a href="/api/health">Systemstatus</a></p>
+          <p><a href="api/health">Systemstatus</a></p>
         </main>
       </body>
     </html>

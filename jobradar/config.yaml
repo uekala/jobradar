@@ -12,7 +12,5 @@ ingress: true
 ingress_port: 8099
 panel_icon: mdi:briefcase-search
 panel_title: Jobradar
-map:
-  - data:rw
 options: {}
 schema: {}
