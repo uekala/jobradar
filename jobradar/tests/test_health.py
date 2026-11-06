@@ -289,3 +289,50 @@ def test_feedback_adjusts_similar_job_scores_without_compounding(tmp_path, monke
         assert reset == 60
     finally:
         client.__exit__(None, None, None)
+
+
+
+def test_existing_version_two_database_adds_base_score_without_data_loss(tmp_path):
+    db_file = tmp_path / "version-two.sqlite3"
+    initialize_database(str(db_file))
+    with connect(str(db_file)) as db:
+        db.execute(
+            "INSERT INTO jobs (id,title,score,status,first_seen_at,last_seen_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)",
+            ("legacy-v2", "VMware Administrator", 74, "gemerkt", "2026-11-01", "2026-11-01", "2026-11-01", "2026-11-01"),
+        )
+        db.execute("ALTER TABLE jobs DROP COLUMN base_score")
+        db.execute("UPDATE schema_meta SET value = '2' WHERE key = 'schema_version'")
+
+    initialize_database(str(db_file))
+
+    with connect(str(db_file)) as db:
+        job = db.execute(
+            "SELECT title, score, base_score, status FROM jobs WHERE id='legacy-v2'"
+        ).fetchone()
+        version = db.execute(
+            "SELECT value FROM schema_meta WHERE key='schema_version'"
+        ).fetchone()
+
+    assert job["title"] == "VMware Administrator"
+    assert job["score"] == 74
+    assert job["base_score"] == 74
+    assert job["status"] == "gemerkt"
+    assert version["value"] == "3"
+
+
+def test_rule_can_be_deleted_and_unknown_rule_returns_404(tmp_path, monkeypatch):
+    client, _ = client_for(tmp_path, monkeypatch)
+    try:
+        saved = client.put(
+            "/api/rules/linux",
+            json={"data": {"name": "Linux-Kenntnisse", "terms": ["Linux"]}},
+        )
+        assert saved.status_code == 200
+        assert client.get("/api/rules").json()["items"]
+
+        deleted = client.delete("/api/rules/linux")
+        assert deleted.status_code == 204
+        assert client.get("/api/rules").json()["items"] == []
+        assert client.delete("/api/rules/missing").status_code == 404
+    finally:
+        client.__exit__(None, None, None)
