@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .database import connect, database_is_ready, initialize_database
 from .sources.karriere_nrw import search_vacancies
-from .scoring import evaluate_vacancy
+from .scoring import evaluate_vacancy, evaluate_vacancy_detailed
 
 JobStatus = Literal["neu", "gemerkt", "beworben", "absage", "verworfen"]
 
@@ -162,9 +162,36 @@ def create_job(payload: JobCreate) -> dict[str, Any]:
 def get_job(job_id: str) -> dict[str, Any]:
     with connect() as db:
         row = db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        profile_row = db.execute("SELECT data_json FROM profile WHERE id = 1").fetchone()
+        rule_rows = db.execute("SELECT id, data_json FROM search_rules ORDER BY id").fetchall()
     if row is None:
         raise HTTPException(status_code=404, detail="Stelle nicht gefunden")
-    return dict(row)
+
+    job = dict(row)
+    profile = json.loads(profile_row["data_json"]) if profile_row else {}
+    rules = [{"id": item["id"], "data": json.loads(item["data_json"])} for item in rule_rows]
+    evaluation = evaluate_vacancy_detailed(job, profile, rules)
+    breakdown = evaluation["breakdown"]
+
+    # Learning feedback is applied after the base evaluation; show it separately.
+    base_score = job.get("base_score")
+    current_score = job.get("score")
+    learning_adjustment = (
+        int(current_score) - int(base_score)
+        if current_score is not None and base_score is not None
+        else 0
+    )
+    if learning_adjustment:
+        breakdown.append({
+            "label": "Lernanpassung",
+            "points": learning_adjustment,
+            "detail": "Aus deinen gemerkten und verworfenen Stellen abgeleitet",
+        })
+
+    job["score_breakdown"] = breakdown
+    job["base_score"] = evaluation["score"]
+    job["learning_adjustment"] = learning_adjustment
+    return job
 
 
 @app.patch("/api/jobs/{job_id}")
