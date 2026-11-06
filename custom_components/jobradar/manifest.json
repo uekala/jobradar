@@ -1,0 +1,15 @@
+{
+  "domain": "jobradar",
+  "name": "Jobradar",
+  "codeowners": [
+    "@uekala"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/uekala/claude-jobradar",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/uekala/claude-jobradar/issues",
+  "requirements": [],
+  "version": "0.2.0"
+}

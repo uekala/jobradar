@@ -1,21 +1,55 @@
-name: Validate Jobradar source
+name: Prüfen
 
 on:
   push:
-    branches: [main]
   pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  source:
+  hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    if: github.repository_visibility == 'public'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: hacs/action@main
+        with:
+          category: integration
+          ignore: brands
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements_test.txt ruff
+      - name: Check Home Assistant integration version metadata
+        run: python tools/check_versions.py
+      - name: Lint Home Assistant integration
+        run: >-
+          ruff check custom_components/jobradar tools/check_versions.py
+          tests/test_api.py tests/test_bund.py tests/test_integration.py
+          tests/test_pay.py tests/test_scoring.py
+          && ruff format --check custom_components/jobradar
+          tools/check_versions.py tests/test_api.py tests/test_bund.py
+          tests/test_integration.py tests/test_pay.py tests/test_scoring.py
+      - run: pytest -q
+
+  dashboard-source:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Validate dashboard source
-        run: node --test tests/*.test.mjs
+      - name: Validate Claude dashboard source
+        run: node --test tests/validate.mjs
