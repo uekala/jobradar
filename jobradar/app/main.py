@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .database import connect, database_is_ready, initialize_database
 from .sources.karriere_nrw import search_vacancies
+from .scoring import evaluate_vacancy
 
 JobStatus = Literal["neu", "gemerkt", "beworben", "absage", "verworfen"]
 
@@ -417,6 +418,8 @@ def run_enabled_search() -> dict[str, Any]:
     with connect() as db:
         profile_row = db.execute("SELECT data_json FROM profile WHERE id = 1").fetchone()
         profile = json.loads(profile_row["data_json"]) if profile_row else {}
+        rule_rows = db.execute("SELECT id, data_json FROM search_rules ORDER BY id").fetchall()
+        rules = [{"id": row["id"], "data": json.loads(row["data_json"])} for row in rule_rows]
         sources = db.execute(
             "SELECT * FROM job_sources WHERE enabled = 1 ORDER BY name COLLATE NOCASE"
         ).fetchall()
@@ -455,10 +458,13 @@ def run_enabled_search() -> dict[str, Any]:
                 radius_km=int(radius) if radius is not None else None,
                 limit=int(config.get("limit", 50)),
             )
-            found_total += len(vacancies)
             now = now_iso()
             with connect() as db:
                 for vacancy in vacancies:
+                    score, excluded = evaluate_vacancy(vacancy, profile, rules)
+                    if excluded:
+                        continue
+                    found_total += 1
                     exists = db.execute(
                         "SELECT id FROM jobs WHERE id = ?", (vacancy["id"],)
                     ).fetchone()
@@ -472,23 +478,27 @@ def run_enabled_search() -> dict[str, Any]:
                             (
                                 vacancy["id"], vacancy["title"], vacancy["company"],
                                 vacancy["location"], vacancy["url"], vacancy["source"],
-                                vacancy["description"], vacancy["published_at"], now, now,
+                                vacancy["description"], score, score, vacancy["published_at"], now, now,
                                 now, now, json.dumps(vacancy.get("raw", {}), ensure_ascii=False),
                             ),
                         )
                     else:
                         db.execute(
                             """UPDATE jobs SET title=?,company=?,location=?,url=?,source=?,description=?,
+                            base_score=?,score=CASE WHEN status IN ('gemerkt','verworfen') THEN score ELSE ? END,
                             published_at=?,last_seen_at=?,updated_at=?,raw_json=? WHERE id=?""",
                             (
                                 vacancy["title"], vacancy["company"], vacancy["location"],
                                 vacancy["url"], vacancy["source"], vacancy["description"],
-                                vacancy["published_at"], now, now,
+                                score, score, vacancy["published_at"], now, now,
                                 json.dumps(vacancy.get("raw", {}), ensure_ascii=False), vacancy["id"],
                             ),
                         )
         except Exception as exc:
             errors.append(f"{source['name']}: {exc}")
+
+    with connect() as db:
+        _apply_learning_scores(db)
 
     status = "failed" if errors and found_total == 0 else ("partial" if errors or skipped_sources else "success")
     error_summary = "; ".join(errors)[:2000] if errors else None
