@@ -173,12 +173,22 @@ def get_job(job_id: str) -> dict[str, Any]:
     evaluation = evaluate_vacancy_detailed(job, profile, rules)
     breakdown = evaluation["breakdown"]
 
-    # Learning feedback is applied after the base evaluation; show it separately.
-    base_score = job.get("base_score")
+    # Stored base scores may come from an earlier profile/rule version.
+    # Reconcile the current explanation with that persisted value transparently.
+    stored_base_score = job.get("base_score")
     current_score = job.get("score")
+    calculated_base_score = evaluation["score"]
+    if stored_base_score is not None:
+        reconciliation = int(stored_base_score) - int(calculated_base_score)
+        if reconciliation:
+            breakdown.append({
+                "label": "Abweichung zum gespeicherten Basiswert",
+                "points": reconciliation,
+                "detail": "Das aktuelle Profil oder die Bewertungsregeln weichen von der ursprünglichen Bewertung ab",
+            })
     learning_adjustment = (
-        int(current_score) - int(base_score)
-        if current_score is not None and base_score is not None
+        int(current_score) - int(stored_base_score)
+        if current_score is not None and stored_base_score is not None
         else 0
     )
     if learning_adjustment:
@@ -189,7 +199,7 @@ def get_job(job_id: str) -> dict[str, Any]:
         })
 
     job["score_breakdown"] = breakdown
-    job["calculated_base_score"] = evaluation["score"]
+    job["calculated_base_score"] = calculated_base_score
     job["learning_adjustment"] = learning_adjustment
     return job
 
