@@ -350,3 +350,27 @@ def test_dashboard_exposes_manual_search_control(tmp_path, monkeypatch):
         assert "karriere-nrw" in response.text
     finally:
         client.__exit__(None, None, None)
+
+
+def test_search_run_reports_unsupported_enabled_sources_as_skipped(tmp_path, monkeypatch):
+    client, _ = client_for(tmp_path, monkeypatch)
+    try:
+        client.put("/api/sources/arbeitsagentur", json={
+            "name": "Arbeitsagentur",
+            "source_type": "api",
+            "enabled": True,
+            "queries": ["Systemadministrator"],
+            "config": {},
+        })
+        response = client.post("/api/search/run")
+        assert response.status_code == 200
+        result = response.json()
+        assert result["sources_checked"] == 0
+        assert result["sources_skipped"] == [{
+            "id": "arbeitsagentur",
+            "name": "Arbeitsagentur",
+            "source_type": "api",
+        }]
+        assert result["run"]["status"] == "success"
+    finally:
+        client.__exit__(None, None, None)
