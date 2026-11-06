@@ -371,6 +371,6 @@ def test_search_run_reports_unsupported_enabled_sources_as_skipped(tmp_path, mon
             "name": "Arbeitsagentur",
             "source_type": "api",
         }]
-        assert result["run"]["status"] == "success"
+        assert result["run"]["status"] == "partial"
     finally:
         client.__exit__(None, None, None)
