@@ -186,3 +186,18 @@ def test_finish_unknown_run_returns_404(tmp_path, monkeypatch):
         assert response.status_code == 404
     finally:
         client.__exit__(None, None, None)
+
+
+
+def test_dashboard_is_responsive_and_uses_api(tmp_path, monkeypatch):
+    client, _ = client_for(tmp_path, monkeypatch)
+    try:
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "Jobradar" in response.text
+        assert "viewport" in response.text
+        assert "api/overview" in response.text
+        assert "detail-notes" in response.text
+        assert "max-width:600px" in response.text
+    finally:
+        client.__exit__(None, None, None)
