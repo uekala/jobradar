@@ -374,3 +374,42 @@ def test_search_run_reports_unsupported_enabled_sources_as_skipped(tmp_path, mon
         assert result["run"]["status"] == "partial"
     finally:
         client.__exit__(None, None, None)
+
+
+
+def test_job_detail_includes_explainable_score_breakdown(tmp_path, monkeypatch):
+    client, _ = client_for(tmp_path, monkeypatch)
+    try:
+        profile = {
+            "roles": ["Systemadministrator"],
+            "skills": ["VMware"],
+            "salary_min": 70000,
+            "public_service_minimum": "TVöD EG 11",
+        }
+        assert client.put("/api/profile", json={"data": profile}).status_code == 200
+
+        created = client.post("/api/jobs", json={
+            "title": "Systemadministrator VMware",
+            "company": "Land NRW",
+            "description": "TVöD EG 12",
+            "salary_min": 72000,
+            "score": 72,
+        })
+        assert created.status_code == 201
+
+        detail = client.get(f"/api/jobs/{created.json()['id']}")
+        assert detail.status_code == 200
+        result = detail.json()
+        assert result["score"] == 72
+        assert result["calculated_base_score"] == 72
+        assert result["learning_adjustment"] == 0
+        assert [item["label"] for item in result["score_breakdown"]] == [
+            "Grundwert",
+            "Zielpositionen",
+            "Kenntnisse",
+            "Gehaltsziel",
+            "Öffentlicher Dienst",
+        ]
+        assert sum(item["points"] for item in result["score_breakdown"]) == 72
+    finally:
+        client.__exit__(None, None, None)
