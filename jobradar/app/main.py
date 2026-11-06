@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from .database import connect, database_is_ready, initialize_database
+from .sources.karriere_nrw import search_vacancies
 
 JobStatus = Literal["neu", "gemerkt", "beworben", "absage", "verworfen"]
 
@@ -406,3 +407,86 @@ def delete_source(source_id: str) -> None:
         cursor = db.execute("DELETE FROM job_sources WHERE id = ?", (source_id,))
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="Quelle nicht gefunden")
+
+
+@app.post("/api/search/run", status_code=200)
+def run_enabled_search() -> dict[str, Any]:
+    """Run the supported public source adapters and persist normalized vacancies."""
+    with connect() as db:
+        profile_row = db.execute("SELECT data_json FROM profile WHERE id = 1").fetchone()
+        profile = json.loads(profile_row["data_json"]) if profile_row else {}
+        sources = db.execute(
+            "SELECT * FROM job_sources WHERE enabled = 1 ORDER BY name COLLATE NOCASE"
+        ).fetchall()
+
+    started = now_iso()
+    with connect() as db:
+        cursor = db.execute(
+            "INSERT INTO runs (started_at, status) VALUES (?, 'running')", (started,)
+        )
+        run_id = cursor.lastrowid
+
+    found_total = 0
+    new_total = 0
+    errors: list[str] = []
+    for source in sources:
+        source_id = source["id"]
+        if source_id != "karriere-nrw" or source["source_type"] != "api":
+            continue
+        try:
+            queries = json.loads(source["query_json"])
+            if not queries:
+                queries = profile.get("roles", [])
+            config = json.loads(source["config_json"])
+            location = config.get("location") or profile.get("location")
+            radius = config.get("radius_km", profile.get("radius_km", 50))
+            vacancies = search_vacancies(
+                terms=queries,
+                location=location,
+                radius_km=int(radius) if radius is not None else None,
+                limit=int(config.get("limit", 50)),
+            )
+            found_total += len(vacancies)
+            now = now_iso()
+            with connect() as db:
+                for vacancy in vacancies:
+                    exists = db.execute(
+                        "SELECT id FROM jobs WHERE id = ?", (vacancy["id"],)
+                    ).fetchone()
+                    if exists is None:
+                        new_total += 1
+                        db.execute(
+                            """INSERT INTO jobs
+                            (id,title,company,location,url,source,description,score,base_score,status,notes,
+                             published_at,first_seen_at,last_seen_at,created_at,updated_at,raw_json)
+                            VALUES (?,?,?,?,?,?,?,NULL,NULL,'neu','',?,?,?,?,?,?)""",
+                            (
+                                vacancy["id"], vacancy["title"], vacancy["company"],
+                                vacancy["location"], vacancy["url"], vacancy["source"],
+                                vacancy["description"], vacancy["published_at"], now, now,
+                                now, now, json.dumps(vacancy.get("raw", {}), ensure_ascii=False),
+                            ),
+                        )
+                    else:
+                        db.execute(
+                            """UPDATE jobs SET title=?,company=?,location=?,url=?,source=?,description=?,
+                            published_at=?,last_seen_at=?,updated_at=?,raw_json=? WHERE id=?""",
+                            (
+                                vacancy["title"], vacancy["company"], vacancy["location"],
+                                vacancy["url"], vacancy["source"], vacancy["description"],
+                                vacancy["published_at"], now, now,
+                                json.dumps(vacancy.get("raw", {}), ensure_ascii=False), vacancy["id"],
+                            ),
+                        )
+        except Exception as exc:
+            errors.append(f"{source['name']}: {exc}")
+
+    status = "failed" if errors and found_total == 0 else ("partial" if errors else "success")
+    error_summary = "; ".join(errors)[:2000] if errors else None
+    with connect() as db:
+        db.execute(
+            "UPDATE runs SET finished_at=?,status=?,jobs_found=?,jobs_new=?,error_summary=? WHERE id=?",
+            (now_iso(), status, found_total, new_total, error_summary, run_id),
+        )
+        row = db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
+    return {"run": dict(row), "sources_checked": len(sources), "errors": errors}
