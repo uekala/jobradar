@@ -3,6 +3,7 @@ name: Build Home Assistant add-on
 on:
   push:
     branches:
+      - main
       - ha-green-foundation
       - consolidate-legacy-integration
   pull_request:
