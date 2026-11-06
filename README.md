@@ -1,48 +1,48 @@
-# Claude Jobradar – Übersichtsseite
+# Jobradar – eigenständiger Betrieb
 
-Eigenständiges Quellcode-Projekt für die Claude-Artifact-Übersichtsseite des Jobradars.
+Dieses Repository entwickelt den persönlichen Jobradar schrittweise von der bisherigen Claude-Artifact-Lösung zu einer eigenständigen Anwendung weiter.
 
-> Dieses Repository enthält **nicht** die frühere Home-Assistant-Integration. Es enthält auch keine Stellen-Datenbank, Zugangsdaten oder persönlichen Bewerbungsunterlagen. Die Daten bleiben in der Claude-Artifact-Datenbank.
+**Zielbetrieb:** Home Assistant Green (ARM64), Zugriff im Heimnetz und unterwegs ausschließlich über die bestehende VPN-Verbindung.
 
-## Inhalt
+**Keine KI im Regelbetrieb:** Suche, Dublettenerkennung, Bewertung, Speicherung und Tagesbericht sollen deterministisch mit Python laufen. KI bleibt optional und wird nicht für tägliche Suchläufe benötigt.
 
-- `index.html` – verbesserte Übersichtsseite (Ausgangsbasis: bereitgestellte `Uebersichtsseite.html`)
-- `archive/Uebersichtsseite-v1.html` – unveränderte Sicherung der Ausgangsversion
-- `tests/smoke_test.py` – Browser-Smoke-Test mit simulierter Claude-Datenbank
-- Die Desktop- und Mobile-Vorschauen befinden sich im Projektpaket (ZIP).
-- `requirements-dev.txt` – Testabhängigkeit
-- `CHANGELOG.md` – Änderungen gegenüber der Ausgangsversion
+## Projektbereiche
 
-## Was die Version verbessert
+- index.html und archive/: bisherige Claude-Artifact-Oberfläche und Archiv; bleiben vorerst als Referenz erhalten.
+- jobradar/: eigenständiger Home-Assistant-Add-on-Dienst (FastAPI + SQLite).
+- .github/workflows/: automatisierte Tests und ARM64-Build-Prüfung.
+- docs/: Architektur- und Betriebsdokumentation.
 
-- Fehler im zweispaltigen Stellenkarten-Layout behoben: Punktzahl und vollständiger Karteninhalt liegen in getrennten Bereichen.
-- Initialisierung von `claude.use("db")` gegen fehlendes `claude`-Objekt und Initialisierungsfehler abgesichert.
-- Datenbank-Schreibvorgänge für Status, Notizen und Suchprofil zeigen verständliche Speicherzustände und Fehler.
-- Notizfelder besitzen stellenbezogene zugängliche Beschriftungen und Statusmeldungen.
-- Statusaktionen erhalten sprechende ARIA-Beschriftungen.
-- Kontrast des aktiven Status „Verworfen“ im hellen Farbschema verbessert.
-- Die vorhandenen Sammlungen, Feldnamen, Statuswerte und Datenbankpfade bleiben unverändert.
+## Entwicklungsstand
 
-## Lokal öffnen
+Branch ha-green-foundation enthält das erste technische Grundgerüst:
+- Home-Assistant-Add-on-Manifest für ARM64.
+- FastAPI-Anwendung mit Health- und Meta-Endpunkt.
+- SQLite-Schema mit persistentem Datenpfad /data/jobradar.db.
+- GitHub-Actions-Workflow für Python-Tests.
+- ARM64-Docker-Build-Prüfung ohne Veröffentlichung eines Images.
 
-Die HTML-Datei kann lokal geöffnet werden. Ohne angemeldete Claude-Artifact-Umgebung werden keine Stellen geladen; stattdessen erscheint ein Hinweis. Das ist erwartetes Verhalten, denn `claude.use("db")` ist nur im angemeldeten Claude-Artifact verfügbar.
+**Noch nicht produktiv:** Es gibt noch keine Suchquellen, keinen Scheduler, keine fertige Dashboard-Anbindung und keine Datenmigration. Die Claude-Version und deren Datenbank bleiben bis zur abgeschlossenen Migration unverändert.
 
-## Browser-Smoke-Test
+## Lokal testen
 
-Voraussetzung: Python 3.10+ und Chromium.
+Im Verzeichnis jobradar ausführen:
 
-```bash
-python -m pip install -r requirements-dev.txt
-python -m playwright install chromium
-python tests/smoke_test.py
-```
+    python -m pip install -r requirements.txt -r requirements-dev.txt
+    pytest -q
 
-Der Test verwendet Beispieldaten und prüft Laden, Filter, Kartenlayout, Statusänderung, Notizspeicherung, Profiländerung, Mobilansicht, lokalen Modus und die Fehlerbehandlung der Datenbankinitialisierung.
+## Home Assistant Green
 
-## GitHub
+Das Repository ist privat. Deshalb wird es vorerst **nicht** als öffentliches Home-Assistant-Add-on-Repository eingebunden und es werden keine Zugangsdaten oder Repository-Rechte offengelegt.
 
-Das private Repository ist `uekala/claude-jobradar`. Die aktive Entwicklungsfassung liegt im Branch `dashboard-v2`. Der bestehende `main`-Branch bleibt unverändert.
+Für die spätere Installation wird ausschließlich der Ordner jobradar/ als lokales Add-on nach /addons/jobradar/ auf Home Assistant OS übertragen. Da in config.yaml kein Remote-Image hinterlegt ist, baut Home Assistant das Add-on lokal aus dem Dockerfile für ARM64.
 
-## Veröffentlichung in Claude
+Die Installation erfolgt erst nach erfolgreichem Test und ausdrücklicher Freigabe. Das Grundgerüst jetzt noch nicht auf dem produktiven Home Assistant installieren.
 
-`index.html` ist der Quelltext für das vorhandene Artifact. Vor einer Veröffentlichung muss die Version im Claude-Artifact-Kontext mit dessen Datenbank-API getestet werden. Diese lokale Version veröffentlicht sich nicht selbst und enthält absichtlich keine Datenbank-Credentials.
+## Sicherheit und Daten
+
+- SQLite-Datei liegt im persistenten Add-on-Verzeichnis /data.
+- Keine Ports werden öffentlich freigegeben.
+- Der Zugriff ist für Home Assistant Ingress vorgesehen; unterwegs erfolgt er über VPN zum Heimnetz.
+- Keine Tokens, Passwörter oder persönlichen Bewerbungsdaten gehören ins Git-Repository.
+- Die vorhandene Claude-Datenbank wird nicht automatisch verändert oder migriert.
