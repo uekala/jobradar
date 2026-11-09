@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
@@ -11,6 +12,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from .backup import BackupError, create_backup, ensure_recent_backup, list_backups, verify_backup
 from .database import connect, database_is_ready, initialize_database
 from .sources.karriere_nrw import search_vacancies
 from .scoring import evaluate_vacancy, evaluate_vacancy_detailed
@@ -22,15 +24,25 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+_LOGGER = logging.getLogger("jobradar")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     initialize_database()
+    try:
+        created = ensure_recent_backup()
+        if created is not None:
+            _LOGGER.info("Backup angelegt: %s", created.name)
+    except BackupError as err:
+        # The service keeps running; the next start tries again.
+        _LOGGER.error("Tägliches Backup fehlgeschlagen: %s", err)
     yield
 
 
 app = FastAPI(
     title="Jobradar",
-    version="0.2.0",
+    version="0.3.0",
     description="Lokaler, KI-unabhängiger Jobradar für Home Assistant",
     lifespan=lifespan,
 )
@@ -107,6 +119,28 @@ def health() -> dict[str, str]:
 @app.get("/api/meta")
 def metadata() -> dict[str, str]:
     return {"name": "Jobradar", "version": app.version, "mode": "standalone"}
+
+
+@app.get("/api/backups")
+def backups() -> dict[str, Any]:
+    items = [
+        {
+            "file": path.name,
+            "size_bytes": path.stat().st_size,
+            "created_at": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(),
+        }
+        for path in list_backups()
+    ]
+    return {"items": items}
+
+
+@app.post("/api/backups", status_code=201)
+def create_manual_backup() -> dict[str, Any]:
+    try:
+        path = create_backup(reason="manual")
+    except BackupError as err:
+        raise HTTPException(status_code=500, detail=str(err)) from err
+    return verify_backup(path)
 
 
 @app.get("/api/jobs")
