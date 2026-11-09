@@ -1,8 +1,10 @@
 """HTTP application entry point and API for the standalone Jobradar."""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
@@ -12,7 +14,15 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from .backup import BackupError, create_backup, ensure_recent_backup, list_backups, verify_backup
+from .backup import (
+    BackupError,
+    create_backup,
+    ensure_recent_backup,
+    list_backups,
+    prune_backups,
+    remove_stale_partials,
+    verify_backup,
+)
 from .database import connect, database_is_ready, initialize_database
 from .sources.karriere_nrw import search_vacancies
 from .scoring import evaluate_vacancy, evaluate_vacancy_detailed
@@ -25,19 +35,82 @@ def now_iso() -> str:
 
 
 _LOGGER = logging.getLogger("jobradar")
+if not _LOGGER.handlers:
+    # uvicorn only configures its own loggers; without this, INFO messages
+    # such as "Backup angelegt" would never reach the add-on log.
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)s:     %(message)s"))
+    _LOGGER.addHandler(_handler)
+    _LOGGER.setLevel(logging.INFO)
+
+
+DEFAULT_BACKUP_CHECK_SECONDS = 3600.0
+
+
+def backup_check_interval() -> float:
+    """Seconds between checks whether the daily backup is due."""
+    raw = os.environ.get("JOBRADAR_BACKUP_CHECK_SECONDS")
+    if not raw:
+        return DEFAULT_BACKUP_CHECK_SECONDS
+    try:
+        value = float(raw)
+    except ValueError:
+        value = 0.0
+    if value <= 0:
+        _LOGGER.warning(
+            "JOBRADAR_BACKUP_CHECK_SECONDS=%r ist ungültig; nutze %s Sekunden",
+            raw,
+            int(DEFAULT_BACKUP_CHECK_SECONDS),
+        )
+        return DEFAULT_BACKUP_CHECK_SECONDS
+    return value
+
+
+def run_scheduled_backup() -> None:
+    """Create the daily backup if it is due. Never raises."""
+    try:
+        created = ensure_recent_backup()
+        if created is not None:
+            _LOGGER.info("Backup angelegt: %s", created.name)
+    except Exception as err:  # noqa: BLE001 - a failed backup must not stop the service
+        # The service keeps running; the next check tries again.
+        _LOGGER.error("Tägliches Backup fehlgeschlagen: %s", err)
+
+
+async def backup_loop(stop: asyncio.Event, interval: float) -> None:
+    """Check every ``interval`` seconds whether the daily backup is due.
+
+    The add-on usually runs for weeks without a restart, so a check only at
+    start would not give daily backups. A running backup is never cancelled:
+    shutdown sets ``stop`` and waits until the current copy is finished.
+    """
+    while True:
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=interval)
+            return
+        except TimeoutError:
+            pass
+        await asyncio.to_thread(run_scheduled_backup)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     initialize_database()
+    for leftover in remove_stale_partials():
+        _LOGGER.warning("Unvollständiges Backup entfernt: %s", leftover.name)
+    # First check before the app serves requests, as before.
+    await asyncio.to_thread(run_scheduled_backup)
+    stop = asyncio.Event()
+    task = asyncio.create_task(backup_loop(stop, backup_check_interval()))
     try:
-        created = ensure_recent_backup()
-        if created is not None:
-            _LOGGER.info("Backup angelegt: %s", created.name)
-    except BackupError as err:
-        # The service keeps running; the next start tries again.
-        _LOGGER.error("Tägliches Backup fehlgeschlagen: %s", err)
-    yield
+        yield
+    finally:
+        # Home Assistant stops the app for a cold backup (SIGTERM). Finish a
+        # running backup copy, then exit; no database connection stays open
+        # because every request uses its own short-lived connection.
+        stop.set()
+        await task
+        _LOGGER.info("Jobradar beendet, Datenbank geschlossen")
 
 
 app = FastAPI(
@@ -138,9 +211,11 @@ def backups() -> dict[str, Any]:
 def create_manual_backup() -> dict[str, Any]:
     try:
         path = create_backup(reason="manual")
+        info = verify_backup(path)
+        prune_backups()
     except BackupError as err:
         raise HTTPException(status_code=500, detail=str(err)) from err
-    return verify_backup(path)
+    return info
 
 
 @app.get("/api/jobs")
