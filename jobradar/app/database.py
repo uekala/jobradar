@@ -7,6 +7,7 @@ from pathlib import Path
 
 
 DEFAULT_DB_PATH = "/data/jobradar.db"
+SCHEMA_VERSION = 3
 
 
 def database_path() -> str:
@@ -22,9 +23,46 @@ def connect(db_path: str | None = None) -> sqlite3.Connection:
     return connection
 
 
+def _existing_schema(path: str) -> tuple[int, set[str]] | None:
+    """Schema version and jobs columns of an existing database, None if there is none."""
+    file = Path(path)
+    if not file.is_file() or file.stat().st_size == 0:
+        return None
+    connection = sqlite3.connect(f"file:{file}?mode=ro", uri=True)
+    try:
+        rows = connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        tables = {row[0] for row in rows}
+        if not tables:
+            return None
+        version = 0
+        if "schema_meta" in tables:
+            row = connection.execute(
+                "SELECT value FROM schema_meta WHERE key = 'schema_version'"
+            ).fetchone()
+            version = int(row[0]) if row else 0
+        columns = set()
+        if "jobs" in tables:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(jobs)")}
+        return version, columns
+    finally:
+        connection.close()
+
+
 def initialize_database(db_path: str | None = None) -> None:
-    """Create the initial schema. Safe to call on every application start."""
-    with connect(db_path) as db:
+    """Create the initial schema. Safe to call on every application start.
+
+    Before an existing database is migrated, a verified backup is written to
+    the backups folder. If that backup fails, the migration does not run.
+    """
+    path = db_path or database_path()
+    existing = _existing_schema(path)
+    if existing is not None:
+        version, columns = existing
+        if version < SCHEMA_VERSION or (columns and "base_score" not in columns):
+            from .backup import create_backup  # local import: backup imports this module
+
+            create_backup(path, reason=f"pre-migration-v{version}-to-v{SCHEMA_VERSION}")
+    with connect(path) as db:
         db.executescript(
             """
             CREATE TABLE IF NOT EXISTS schema_meta (

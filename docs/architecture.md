@@ -83,7 +83,24 @@ Die bisherige Artifact-Datenbank wird während der Entwicklung weder überschrie
 
 ## Persistenz und Betrieb
 
-Die Datenbank liegt unter `/data/jobradar.db`. Der dauerhafte Speicherbereich des Add-ons wird für Daten und Backups genutzt. Vor produktiven Suchläufen werden Backup und Wiederherstellung getestet. Der Add-on-Port 8099 wird nicht öffentlich am Router freigegeben.
+Die Datenbank liegt unter `/data/jobradar.db`. Der dauerhafte Speicherbereich des Add-ons wird für Daten und Backups genutzt. Der Add-on-Port 8099 wird nicht öffentlich am Router freigegeben.
+
+### Backup und Wiederherstellung
+
+- **Täglich:** Beim Start entsteht ein Backup unter `/data/backups/jobradar-<Zeitstempel>-daily.db`, wenn das letzte älter als 24 Stunden ist. Die 14 neuesten bleiben erhalten.
+- **Vor Migrationen:** Vor jeder Schemaänderung entsteht `…-pre-migration-vX-to-vY.db`. Schlägt das Backup fehl, bricht der Start ab und die Datenbank bleibt unverändert.
+- **Verfahren:** SQLite-Online-Backup (konsistent auch während Schreibzugriffen), danach `PRAGMA integrity_check`; nur geprüfte Dateien gelten als Backup. Rechte `0600`.
+- **Home-Assistant-Backups:** `backup: cold` – Home Assistant hält die App während der Sicherung an. Die Dateien unter `/data/backups` sind in jedem HA-Backup enthalten.
+- **Manuell:** `POST /api/backups` oder im Container `python -m app.backup create --reason vor-update`.
+
+Wiederherstellen (nur nach Freigabe, die Live-Datenbank wird nie direkt überschrieben):
+
+1. `python -m app.backup list` und `python -m app.backup verify /data/backups/<Datei>` – Zeilenzahlen prüfen.
+2. `python -m app.backup restore-to /data/backups/<Datei> /data/jobradar.restored.db` – schreibt in eine neue Datei und prüft sie.
+3. App stoppen, `/data/jobradar.db` in `/data/jobradar.before-restore.db` umbenennen, `/data/jobradar.restored.db` in `/data/jobradar.db` umbenennen, App starten.
+4. Die alte Datei erst löschen, wenn die wiederhergestellten Daten geprüft sind.
+
+Automatisierte Tests decken Backup, Prüfung, Aufräumen, Wiederherstellung in eine neue Datei, das Backup vor Migrationen und den Abbruch bei fehlgeschlagenem Backup ab (`jobradar/tests/test_backup.py`).
 
 ## Umsetzungsphasen
 
