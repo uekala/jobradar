@@ -68,9 +68,9 @@ def evaluate_vacancy_detailed(
     breakdown.append({"label": "Öffentlicher Dienst", "points": grade_points, "detail": grade_detail})
 
     for rule in rules:
-        if rule.get("enabled") is False:
-            continue
         data = rule.get("data", rule)
+        if rule.get("enabled") is False or data.get("enabled") is False:
+            continue
         matches = [term for term in _terms(data.get("terms")) if term.casefold() in haystack]
         if not matches:
             continue

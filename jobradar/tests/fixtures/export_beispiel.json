@@ -1,0 +1,164 @@
+{
+  "_export": {
+    "typ": "jobradar-datenexport",
+    "formatversion": 1,
+    "erstellt_utc": "2026-01-03T08:00:00Z",
+    "anzahl_je_collection": {
+      "jobs": 3,
+      "laeufe": 2,
+      "profil": 1,
+      "regeln": 1,
+      "pflege": 1
+    },
+    "dokumente_exportiert": 8
+  },
+  "collections": {
+    "jobs": [
+      {
+        "id": "beispiel-a-systemadministrator",
+        "path": "jobs/beispiel-a-systemadministrator",
+        "version": 1,
+        "updatedAt": "2026-01-02T06:00:01.000001Z",
+        "data": {
+          "arbeitgeber": "Beispiel Werke GmbH",
+          "bedenken": "Bereitschaftsdienst; Homeoffice nur nach Absprache.",
+          "gefunden": "2026-01-02T06:00:00Z",
+          "gehalt": "TV-L E 12",
+          "homeoffice": true,
+          "notiz": "",
+          "ort": "Musterstadt",
+          "punkte": 88,
+          "quelle": "Beispielbörse",
+          "status": "neu",
+          "titel": "Systemadministrator Linux (m/w/d)",
+          "url": "https://jobs.example.org/anzeige/1001",
+          "veroeffentlicht": "2025-12-30",
+          "warum": "Linux, VMware und Ansible im Betrieb – passt sehr gut."
+        }
+      },
+      {
+        "id": "beispiel-b-cloud-engineer",
+        "path": "jobs/beispiel-b-cloud-engineer",
+        "version": 3,
+        "updatedAt": "2026-01-02T09:30:00.5Z",
+        "data": {
+          "arbeitgeber": "Muster & Partner AG",
+          "bedenken": "",
+          "geaendert": "2026-01-02T09:29:59Z",
+          "gefunden": "2026-01-02T06:00:00Z",
+          "gehalt": "",
+          "homeoffice": false,
+          "notiz": "Ansprechpartnerin angerufen, Rückmeldung bis Freitag",
+          "ort": "Beispielhausen",
+          "punkte": 81,
+          "quelle": "Beispielbörse",
+          "status": "merken",
+          "titel": "Cloud Engineer (m/w/d)",
+          "url": "https://jobs.example.org/anzeige/1002",
+          "veroeffentlicht": "2025-12-28",
+          "warum": "Container-Plattform und Automatisierung."
+        }
+      },
+      {
+        "id": "beispiel-c-helpdesk",
+        "path": "jobs/beispiel-c-helpdesk",
+        "version": 2,
+        "updatedAt": "2026-01-02T10:00:00Z",
+        "data": {
+          "arbeitgeber": "Testfirma KG",
+          "bedenken": "Anzeige nicht geöffnet.",
+          "gefunden": "2026-01-01T06:00:00Z",
+          "gehalt": "",
+          "homeoffice": false,
+          "notiz": "zu viel Telefon",
+          "ort": "Musterstadt",
+          "punkte": 57,
+          "quelle": "Stellenseite",
+          "status": "verworfen",
+          "titel": "IT-Administrator mit Anwenderbetreuung",
+          "url": "https://www.example.org/stellenangebote--it-administrator--4711-inline.",
+          "veroeffentlicht": "",
+          "warum": "Windows Server und Virtualisierung."
+        }
+      }
+    ],
+    "laeufe": [
+      {
+        "id": "2026-01-01",
+        "path": "laeufe/2026-01-01",
+        "version": 1,
+        "updatedAt": "2026-01-01T06:05:00Z",
+        "data": {
+          "datum": "2026-01-01T06:00:00Z",
+          "hinweis": "Erster Lauf.",
+          "neu": 1,
+          "quellen": "Stellenseite"
+        }
+      },
+      {
+        "id": "2026-01-02",
+        "path": "laeufe/2026-01-02",
+        "version": 1,
+        "updatedAt": "2026-01-02T06:05:00Z",
+        "data": {
+          "datum": "2026-01-02T06:00:00Z",
+          "hinweis": "",
+          "je_quelle": "Beispielbörse 10/2, Stellenseite 5/0",
+          "neu": 2,
+          "quellen": "Beispielbörse"
+        }
+      }
+    ],
+    "profil": [
+      {
+        "id": "aktuell",
+        "path": "profil/aktuell",
+        "version": 2,
+        "updatedAt": "2025-12-31T12:00:00Z",
+        "data": {
+          "ausschliessen_arbeitgeber": "Beispiel Behörde, Muster Rechenzentrum",
+          "faehigkeiten": "Linux, VMware vSphere (Cluster, viele VMs), Ansible",
+          "geaendert": "2025-12-31T12:00:00Z",
+          "gehalt_wunsch": 65000,
+          "homeoffice": true,
+          "min_entgeltgruppe": 10,
+          "ort": "Musterstadt",
+          "rollen": "Systemadministrator, Cloud- oder Platform-Engineer",
+          "umkreis_km": 40,
+          "wuensche": "zwei Tage Homeoffice"
+        }
+      }
+    ],
+    "regeln": [
+      {
+        "id": "aktuell",
+        "path": "regeln/aktuell",
+        "version": 2,
+        "updatedAt": "2025-12-31T12:00:00Z",
+        "data": {
+          "abwerten": "Junior, Helpdesk, 1st Level",
+          "bevorzugen": "",
+          "geaendert": "2025-12-31T12:00:00Z",
+          "geaendert_von": "Einrichtung",
+          "karriereseiten": "https://karriere.example.org/stellen",
+          "quellen_hinweise": "Beispielbörse: Suchseite mit Parametern was und wo.",
+          "suchbegriffe_zusatz": ""
+        }
+      }
+    ],
+    "pflege": [
+      {
+        "id": "stand",
+        "path": "pflege/stand",
+        "version": 1,
+        "updatedAt": "2025-12-31T12:00:00Z",
+        "data": {
+          "angelegt": "2025-12-31T12:00:00Z",
+          "letzter_lauf": "",
+          "offene_vorschlaege": "31.12.: Jobalarme einrichten.",
+          "seite_version_vorher": ""
+        }
+      }
+    ]
+  }
+}

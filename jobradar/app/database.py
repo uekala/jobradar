@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 DEFAULT_DB_PATH = "/data/jobradar.db"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def database_path() -> str:
@@ -133,8 +133,28 @@ def initialize_database(db_path: str | None = None) -> None:
             CREATE INDEX IF NOT EXISTS idx_jobs_score ON jobs(score);
             CREATE INDEX IF NOT EXISTS idx_jobs_first_seen ON jobs(first_seen_at);
 
+            CREATE TABLE IF NOT EXISTS imports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                imported_at TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                export_created TEXT,
+                content_sha256 TEXT NOT NULL,
+                report_json TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS import_archive (
+                path TEXT PRIMARY KEY,
+                collection TEXT NOT NULL,
+                doc_id TEXT NOT NULL,
+                version INTEGER,
+                updated_at TEXT,
+                data_json TEXT NOT NULL,
+                import_id INTEGER NOT NULL REFERENCES imports(id),
+                imported_at TEXT NOT NULL
+            );
+
             INSERT INTO schema_meta(key, value)
-            VALUES ('schema_version', '3')
+            VALUES ('schema_version', '4')
             ON CONFLICT(key) DO UPDATE SET value = excluded.value;
             """
         )
@@ -142,7 +162,29 @@ def initialize_database(db_path: str | None = None) -> None:
         if "base_score" not in columns:
             db.execute("ALTER TABLE jobs ADD COLUMN base_score INTEGER")
             db.execute("UPDATE jobs SET base_score = score WHERE base_score IS NULL")
-        db.execute("UPDATE schema_meta SET value = '3' WHERE key = 'schema_version'")
+        _add_missing_columns(db, "jobs", {
+            "imported_score": "INTEGER",
+            "imported_at": "TEXT",
+            "import_source": "TEXT",
+            "import_json": "TEXT",
+        })
+        _add_missing_columns(db, "runs", {
+            "sources": "TEXT",
+            "note": "TEXT",
+            "imported_at": "TEXT",
+            "import_json": "TEXT",
+        })
+        db.execute(
+            "UPDATE schema_meta SET value = ? WHERE key = 'schema_version'", (str(SCHEMA_VERSION),)
+        )
+
+
+def _add_missing_columns(db: sqlite3.Connection, table: str, columns: dict[str, str]) -> None:
+    """Add nullable columns that older databases do not have yet."""
+    existing = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
+    for name, column_type in columns.items():
+        if name not in existing:
+            db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {column_type}")
 
 
 def database_is_ready(db_path: str | None = None) -> bool:

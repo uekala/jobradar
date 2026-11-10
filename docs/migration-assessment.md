@@ -233,14 +233,14 @@ Die Testmigration ist nur erfolgreich, wenn:
 
 ## 7. Freigabekriterien vor Produktivmigration
 
-- [ ] Claude-Artifact-Export vollständig und geprüft.
+- [x] Claude-Artifact-Export vollständig und geprüft (06.11.2026: 18 Dokumente, jeder Feldwert gegen die Quelle bestätigt).
 - [ ] HA-Config-Entry und vollständiger Integration-Store gesichert.
 - [ ] Produktive Add-on-Datenbank inventarisiert und gesichert.
 - [ ] Kanonisches Datenmodell und Status-Mapping abgenommen.
 - [ ] Scoring-Referenzmodell und Versionierung beschlossen.
 - [ ] Bundesagentur- und Bund.de-Adapter portiert oder bewusste Quellenentscheidung getroffen.
 - [ ] Täglicher Scheduler, Benachrichtigungen und Fehlerüberwachung implementiert.
-- [ ] Dry-Run ohne Datenverlust abgeschlossen.
+- [x] Dry-Run ohne Datenverlust abgeschlossen (10.11.2026, separate Testdatenbank, alle 18 Dokumente feldweise verglichen; Importer siehe `docs/import.md`).
 - [ ] Parallelbetrieb und Backup-Wiederherstellung erfolgreich.
 - [ ] Explizite Freigabe des Benutzers für Produktivumschaltung erteilt.
 

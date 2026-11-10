@@ -6,7 +6,7 @@ from datetime import timedelta
 
 import pytest
 from app import backup
-from app.database import connect, initialize_database
+from app.database import SCHEMA_VERSION, connect, initialize_database
 from fastapi.testclient import TestClient
 
 
@@ -38,7 +38,7 @@ def test_backup_is_consistent_verified_and_private(tmp_path):
     assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
     info = backup.verify_backup(path)
     assert info["rows"]["jobs"] == 3
-    assert info["schema_version"] == "3"
+    assert info["schema_version"] == "4"
     assert not list(path.parent.glob("*.partial"))
 
 
@@ -141,7 +141,7 @@ def test_migration_from_v2_writes_backup_first(tmp_path):
 
     backups = backup.list_backups(tmp_path / "backups")
     assert len(backups) == 1
-    assert "pre-migration-v2-to-v3" in backups[0].name
+    assert f"pre-migration-v2-to-v{SCHEMA_VERSION}" in backups[0].name
     info = backup.verify_backup(backups[0])
     assert info["schema_version"] == "2"
     assert info["rows"]["jobs"] == 1

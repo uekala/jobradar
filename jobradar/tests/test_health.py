@@ -51,7 +51,7 @@ def test_database_schema_and_version(tmp_path):
             "SELECT value FROM schema_meta WHERE key = 'schema_version'"
         ).fetchone()
     assert {"schema_meta", "jobs", "runs", "profile", "search_rules"} <= tables
-    assert version["value"] == "3"
+    assert version["value"] == "4"
     assert "job_sources" in tables
     assert "base_score" in {row["name"] for row in connect(str(db_file)).execute("PRAGMA table_info(jobs)")}
 
@@ -256,7 +256,7 @@ def test_existing_version_one_database_is_upgraded_without_data_loss(tmp_path):
         sources = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='job_sources'").fetchone()
     assert job["title"] == "Vorhandene Stelle"
     assert job["status"] == "gemerkt"
-    assert version["value"] == "3"
+    assert version["value"] == "4"
     assert sources is not None
 
 
@@ -320,7 +320,7 @@ def test_existing_version_two_database_adds_base_score_without_data_loss(tmp_pat
     assert job["score"] == 74
     assert job["base_score"] == 74
     assert job["status"] == "gemerkt"
-    assert version["value"] == "3"
+    assert version["value"] == "4"
 
 
 def test_rule_can_be_deleted_and_unknown_rule_returns_404(tmp_path, monkeypatch):
