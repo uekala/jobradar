@@ -1,5 +1,15 @@
 # Änderungen der Jobradar-App
 
+## 0.4.0
+
+- **Datenübernahme.** Im Dashboard unter „Datenübernahme“ lässt sich der Export des bisherigen Jobradars einlesen. Zuerst läuft immer ein Probelauf mit Bericht; übernommen wird erst nach Bestätigung und nur, wenn der Probelauf fehlerfrei ist.
+- Übernommene Stellen behalten ihre ID, ihren Status, ihre Notiz und ihre Punkte. Die Detailansicht zeigt dazu die bisherige Einschätzung („Passt, weil“, „Aber“, Gehalt).
+- Jedes Dokument des Exports wird zusätzlich unverändert archiviert. Ein zweiter Import derselben Datei ändert nichts.
+- Neue Schnittstellen `POST /api/import` und `GET /api/imports`. Beschreibung in `docs/import.md`.
+- **Korrektur:** Das Dashboard lud keine Daten und reagierte auf keine Schaltfläche, weil ein Zeichenfehler das ganze Skript ungültig machte.
+- **Korrektur:** Pausierte Bewertungsregeln wurden trotzdem angewendet.
+- Datenbankschema 4. Vor der Umstellung entsteht automatisch ein geprüftes Backup.
+
 ## 0.3.0
 
 - **Tägliche Datensicherung.** Beim Start und danach stündlich prüft die App, ob das letzte Backup älter als 24 Stunden ist, und legt dann ein geprüftes Backup unter `/data/backups` an. So entstehen auch dann tägliche Backups, wenn die App wochenlang ohne Neustart läuft. Von den täglichen und manuellen Backups bleiben die 14 neuesten; Backups vor Migrationen werden nie automatisch gelöscht.
