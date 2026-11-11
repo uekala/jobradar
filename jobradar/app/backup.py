@@ -6,6 +6,8 @@ Rules:
 - Every backup is checked with ``PRAGMA integrity_check`` before it counts.
 - Nothing here ever writes to the live database. A restore always goes into a
   new file; switching to it is a manual step (see docs/architecture.md).
+- Only routine backups (daily, manual) are pruned. Backups written before a
+  schema migration are kept until someone deletes them on purpose.
 """
 from __future__ import annotations
 
@@ -20,8 +22,9 @@ from pathlib import Path
 
 from .database import database_path
 
-BACKUP_PATTERN = re.compile(r"^jobradar-\d{8}-\d{6}(-\d+)?-[a-z0-9-]+\.db$")
+BACKUP_PATTERN = re.compile(r"^jobradar-\d{8}-\d{6}(?:-\d+)?-(?P<reason>[a-z0-9-]+)\.db$")
 DEFAULT_KEEP = 14
+ROUTINE_REASONS = frozenset({"daily", "manual"})
 
 
 class BackupError(RuntimeError):
@@ -126,14 +129,42 @@ def list_backups(directory: Path | None = None) -> list[Path]:
     return sorted(files, key=lambda p: p.name, reverse=True)
 
 
+def backup_reason(path: Path) -> str | None:
+    match = BACKUP_PATTERN.match(path.name)
+    return match.group("reason") if match else None
+
+
 def prune_backups(directory: Path | None = None, keep: int = DEFAULT_KEEP) -> list[Path]:
-    """Delete the oldest backups beyond ``keep``. Only touches backup files."""
+    """Delete the oldest routine backups beyond ``keep``.
+
+    Only daily and manual backups count and get deleted; pre-migration
+    backups and any other file in the folder are left alone.
+    """
     if keep < 1:
         raise ValueError("keep muss mindestens 1 sein")
+    routine = [p for p in list_backups(directory) if backup_reason(p) in ROUTINE_REASONS]
     removed = []
-    for path in list_backups(directory)[keep:]:
+    for path in routine[keep:]:
         path.unlink()
         removed.append(path)
+    return removed
+
+
+def remove_stale_partials(directory: Path | None = None) -> list[Path]:
+    """Delete half-written backup files left behind by an interrupted backup.
+
+    A ``.db.partial`` file never counts as a backup. One can only remain if
+    the process was killed while copying, e.g. when Home Assistant stops the
+    app for a cold backup and the stop timeout runs out.
+    """
+    directory = directory or backup_dir()
+    if not directory.is_dir():
+        return []
+    removed = []
+    for path in directory.glob("jobradar-*.db.partial"):
+        if path.is_file():
+            path.unlink()
+            removed.append(path)
     return removed
 
 

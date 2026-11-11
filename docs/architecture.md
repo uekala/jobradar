@@ -87,10 +87,11 @@ Die Datenbank liegt unter `/data/jobradar.db`. Der dauerhafte Speicherbereich de
 
 ### Backup und Wiederherstellung
 
-- **Täglich:** Beim Start entsteht ein Backup unter `/data/backups/jobradar-<Zeitstempel>-daily.db`, wenn das letzte älter als 24 Stunden ist. Die 14 neuesten bleiben erhalten.
+- **Täglich:** Beim Start und danach stündlich (`JOBRADAR_BACKUP_CHECK_SECONDS`, Standard 3600) prüft die App, ob das letzte Backup älter als 24 Stunden ist, und legt dann `/data/backups/jobradar-<Zeitstempel>-daily.db` an. Von den täglichen und manuellen Backups bleiben die 14 neuesten; Backups vor Migrationen und mit anderem Anlass werden nie automatisch gelöscht.
 - **Vor Migrationen:** Vor jeder Schemaänderung entsteht `…-pre-migration-vX-to-vY.db`. Schlägt das Backup fehl, bricht der Start ab und die Datenbank bleibt unverändert.
 - **Verfahren:** SQLite-Online-Backup (konsistent auch während Schreibzugriffen), danach `PRAGMA integrity_check`; nur geprüfte Dateien gelten als Backup. Rechte `0600`.
-- **Home-Assistant-Backups:** `backup: cold` – Home Assistant hält die App während der Sicherung an. Die Dateien unter `/data/backups` sind in jedem HA-Backup enthalten.
+- **Home-Assistant-Backups:** `backup: cold` (ab 0.3.0, per Test erzwungen) – Home Assistant stoppt die App per SIGTERM, sichert `/data` und startet sie wieder. Die Dateien unter `/data/backups` sind in jedem HA-Backup enthalten.
+- **Anhalten für das Cold Backup:** uvicorn läuft als PID 1 (Exec-Form im Dockerfile) und bekommt das SIGTERM direkt. Offene Anfragen bekommen höchstens 5 Sekunden (`--timeout-graceful-shutdown 5`), danach endet die App sauber: Eine laufende Sicherung wird fertig geschrieben, es bleibt keine offene Verbindung und kein Journal liegen. Der Supervisor wartet standardmäßig 10 Sekunden, bevor er hart abbricht. uvicorn beendet sich nach dem sauberen Herunterfahren mit dem Signal selbst (Docker zeigt Exit-Code 143); das ist erwartet. Reste einer abgebrochenen Sicherung (`*.db.partial`) entfernt der nächste Start.
 - **Manuell:** `POST /api/backups` oder im Container `python -m app.backup create --reason vor-update`.
 
 Wiederherstellen (nur nach Freigabe, die Live-Datenbank wird nie direkt überschrieben):
@@ -100,7 +101,15 @@ Wiederherstellen (nur nach Freigabe, die Live-Datenbank wird nie direkt übersch
 3. App stoppen, `/data/jobradar.db` in `/data/jobradar.before-restore.db` umbenennen, `/data/jobradar.restored.db` in `/data/jobradar.db` umbenennen, App starten.
 4. Die alte Datei erst löschen, wenn die wiederhergestellten Daten geprüft sind.
 
-Automatisierte Tests decken Backup, Prüfung, Aufräumen, Wiederherstellung in eine neue Datei, das Backup vor Migrationen und den Abbruch bei fehlgeschlagenem Backup ab (`jobradar/tests/test_backup.py`).
+Wiederherstellen aus einem Home-Assistant-Backup: in Home Assistant unter Einstellungen → System → Backups das Backup öffnen und nur die Jobradar-App wiederherstellen. Home Assistant ersetzt dabei `/data` vollständig, auch neuere Daten. Deshalb vorher ein aktuelles Backup anlegen.
+
+Automatisierte Tests:
+
+- `jobradar/tests/test_backup.py`: Backup, Prüfung, Aufräumen (Backups vor Migrationen bleiben), stündliche Prüfung, Abschluss einer laufenden Sicherung beim Stoppen, Entfernen von `*.partial`, Wiederherstellung in eine neue Datei, Backup vor Migrationen und Abbruch bei fehlgeschlagenem Backup.
+- `jobradar/tests/test_cold_backup_cycle.py`: echter Dienst mit dem Startbefehl aus dem Dockerfile; Stopp per SIGTERM innerhalb von 10 Sekunden, saubere Datenbank in `/data`, Archiv wie ein HA-Backup, Wiederherstellung in ein leeres `/data` und mit `restore-to`, Vergleich aller Jobs, Notizen, Status, Profil, Regeln und Quellen. Ein zweiter Test stoppt mitten in Schreibzugriffen: Jeder bestätigte Datensatz muss danach vorhanden sein.
+- `jobradar/tests/test_release_metadata.py`: Version in `config.yaml`, App und CHANGELOG stimmen überein; ab 0.3.0 ist `backup: cold` gesetzt.
+
+Selbst prüfen: `cd jobradar && pytest -q tests/test_cold_backup_cycle.py -v`.
 
 ## Umsetzungsphasen
 
