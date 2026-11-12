@@ -96,6 +96,23 @@ jobs:
         run: |
           python -m venv .venv-lock-check
           .venv-lock-check/bin/python -m pip install --disable-pip-version-check --require-hashes -r jobradar/requirements.lock
+      - name: Install pinned vulnerability auditor
+        run: |
+          python -m venv .venv-pip-audit
+          .venv-pip-audit/bin/python -m pip install --disable-pip-version-check "pip-audit==2.10.1"
+      - name: Audit hash-locked runtime dependencies
+        run: |
+          .venv-pip-audit/bin/pip-audit --require-hashes \
+            --requirement jobradar/requirements.lock \
+            --format json \
+            --output jobradar-runtime-pip-audit.json
+      - name: Upload runtime vulnerability audit
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: jobradar-runtime-vulnerability-audit
+          path: jobradar-runtime-pip-audit.json
+          if-no-files-found: error
+          retention-days: 90
       - name: Set up ARM64 emulation
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
       - name: Verify hash-checked installation on ARM64
