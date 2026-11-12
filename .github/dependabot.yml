@@ -9,6 +9,14 @@ updates:
       time: "05:00"
       timezone: "Europe/Berlin"
     open-pull-requests-limit: 5
+  - package-ecosystem: "pip"
+    directory: "/jobradar"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Europe/Berlin"
+    open-pull-requests-limit: 5
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
