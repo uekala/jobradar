@@ -44,12 +44,12 @@ jobs:
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
         with:
           image: local/jobradar:sbom-arm64
-          fail-build: true
-          severity-cutoff: medium
+          fail-build: false
           output-format: json
           output-file: grype-jobradar-container-arm64.json
 
       - name: Upload ARM64 vulnerability scan
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: jobradar-container-arm64-vulnerability-scan
@@ -57,7 +57,38 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+      - name: Enforce ARM64 vulnerability threshold after report upload
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          report="grype-jobradar-container-arm64.json"
+          if [[ ! -s "$report" ]]; then
+            echo "::error::Grype JSON report is missing; refusing to treat the image as clean."
+            exit 1
+          fi
+          jq -r '
+            [.matches[]? |
+              select((.vulnerability.severity // "Unknown" | ascii_upcase) as $severity |
+                ["MEDIUM", "HIGH", "CRITICAL"] | index($severity))] as $findings |
+            "Findings at Medium or higher: \($findings | length)",
+            ($findings[]? |
+              [
+                (.vulnerability.severity // "Unknown"),
+                (.vulnerability.id // "unknown-id"),
+                (.artifact.name // "unknown-package"),
+                (.artifact.version // "unknown-version"),
+                ((.matchDetails[0].searchedBy.distro.name // "") )
+              ] | @tsv)
+          ' "$report"
+          count="$(jq '[.matches[]? | select((.vulnerability.severity // "Unknown" | ascii_upcase) as $severity | ["MEDIUM", "HIGH", "CRITICAL"] | index($severity))] | length' "$report")"
+          if [[ "$count" -gt 0 ]]; then
+            echo "::error::$count vulnerability finding(s) at Medium or higher. Review the uploaded Grype report."
+            exit 1
+          fi
+
       - name: Generate CycloneDX SBOM from ARM64 image
+        if: always()
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           image: local/jobradar:sbom-arm64
