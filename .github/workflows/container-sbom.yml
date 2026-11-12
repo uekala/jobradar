@@ -31,6 +31,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
+      - name: Record candidate Python base image digest
+        run: |
+          docker buildx imagetools inspect python:3.12.16-slim-trixie | tee python-base-manifest.txt
+
+      - name: Upload candidate base image manifest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: jobradar-trixie-base-manifest
+          path: python-base-manifest.txt
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Build ARM64 image locally (no publish)
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
