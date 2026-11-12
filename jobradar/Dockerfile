@@ -1,9 +1,10 @@
-FROM python:3.12-slim-bookworm@sha256:935c3c5b12357a7e10caa9c1e6ca5692344d97cf229832ef584be2cec9fc03df
+FROM python:3.12.16-slim-trixie
 
 WORKDIR /app
 
 COPY requirements.txt /app/requirements.txt
-RUN python -m pip install --no-cache-dir -r /app/requirements.txt
+RUN python -m pip install --no-cache-dir --upgrade "pip==26.3" \
+    && python -m pip install --no-cache-dir -r /app/requirements.txt
 
 COPY app/ /app/app/
 
