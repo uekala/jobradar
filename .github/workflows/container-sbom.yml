@@ -52,6 +52,69 @@ jobs:
           load: true
           tags: local/jobradar:sbom-arm64
 
+      - name: Inspect ARM64 runtime SQLite and native-library profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --platform linux/arm64 --entrypoint python local/jobradar:sbom-arm64 -c '
+          import ctypes.util
+          import json
+          import os
+          import platform
+          import sqlite3
+          import sys
+
+          db = sqlite3.connect(":memory:")
+          options = sorted(row[0] for row in db.execute("PRAGMA compile_options"))
+          fts5 = False
+          try:
+              db.execute("CREATE VIRTUAL TABLE temp.runtime_fts_probe USING fts5(content)")
+              db.execute("DROP TABLE temp.runtime_fts_probe")
+              fts5 = True
+          except sqlite3.OperationalError:
+              pass
+
+          maps = set()
+          try:
+              with open("/proc/self/maps", encoding="utf-8") as handle:
+                  for line in handle:
+                      path = line.split()[-1]
+                      if path.startswith("/") and (".so" in path or "ld-linux" in path):
+                          maps.add(path)
+          except OSError:
+              pass
+
+          status = {}
+          with open("/proc/self/status", encoding="utf-8") as handle:
+              for line in handle:
+                  if line.startswith(("Uid:", "Gid:", "CapEff:", "NoNewPrivs:")):
+                      key, value = line.split(":", 1)
+                      status[key] = value.strip()
+
+          print(json.dumps({
+              "python_version": sys.version,
+              "platform": platform.platform(),
+              "machine": platform.machine(),
+              "sqlite_python_module_version": sqlite3.version,
+              "sqlite_library_version": sqlite3.sqlite_version,
+              "sqlite_compile_options": options,
+              "sqlite_fts5_probe": fts5,
+              "sqlite_session_compile_option": "ENABLE_SESSION" in options,
+              "native_libraries_loaded": sorted(maps),
+              "find_library_libstdcxx": ctypes.util.find_library("stdc++"),
+              "process_security_status": status,
+          }, indent=2, sort_keys=True))
+          ' | tee jobradar-arm64-runtime-profile.json
+
+      - name: Upload ARM64 runtime profile
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: jobradar-arm64-runtime-profile
+          path: jobradar-arm64-runtime-profile.json
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Scan ARM64 image for OS and application vulnerabilities
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
         with:
