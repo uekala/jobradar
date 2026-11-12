@@ -6,7 +6,7 @@ The `Python SBOM` workflow resolves dependencies in clean CI virtual environment
 
 - **runtime**: Python 3.12 packages installed from `jobradar/requirements.txt`.
 - **standalone-tests**: Python 3.12 packages installed from the runtime and development requirement files.
-- **ha-integration-tests**: Python 3.13 packages installed from the root `requirements_test.txt`.
+- **ha-integration-tests**: Python 3.14 packages installed from the root `requirements_test.txt`. The Home Assistant test plugin is pinned to the matching reviewed release in that file.
 
 The workflow runs for relevant pull requests and can also be started manually with `workflow_dispatch`. Its outputs are retained as GitHub Actions artifacts for 90 days.
 
@@ -23,6 +23,8 @@ The SBOM generator is installed in the runner environment, outside the isolated 
 
 ## Reproducibility and review
 
-Dependency constraints in the project manifests are ranges, not locks. The generated files therefore represent the versions resolved at that workflow run, not a guarantee that a future run will resolve identical versions. Preserve the artifact with the corresponding workflow run/commit when retaining an audit record.
+Dependency constraints in the runtime and standalone development manifests are ranges, not locks. The generated files therefore represent the versions resolved at that workflow run, not a guarantee that a future run will resolve identical versions. Preserve the artifact with the corresponding workflow run/commit when retaining an audit record.
+
+The Home Assistant integration test plugin is pinned separately because its releases track specific Home Assistant versions and may require a newer Python runtime. Update that pin together with the Python version after checking the plugin's published metadata and rerunning the integration tests.
 
 Do not treat a successful SBOM generation as proof that all licenses or external-service terms have been legally approved. Review missing/ambiguous license metadata and separately assess the Docker base image and external data sources.
