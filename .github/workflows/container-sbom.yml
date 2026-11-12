@@ -102,6 +102,7 @@ jobs:
           syft-version: v1.57.1
 
       - name: Verify SBOM contains Debian OS packages
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
