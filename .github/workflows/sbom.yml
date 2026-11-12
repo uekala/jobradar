@@ -113,6 +113,20 @@ jobs:
           path: jobradar-runtime-pip-audit.json
           if-no-files-found: error
           retention-days: 90
+      - name: Audit runtime dependencies against OSV
+        run: |
+          .venv-pip-audit/bin/pip-audit --no-deps \
+            --vulnerability-service osv \
+            --requirement jobradar/requirements.lock \
+            --format json \
+            --output jobradar-runtime-osv-audit.json
+      - name: Upload OSV vulnerability audit
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: jobradar-runtime-osv-audit
+          path: jobradar-runtime-osv-audit.json
+          if-no-files-found: error
+          retention-days: 90
       - name: Set up ARM64 emulation
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
       - name: Verify hash-checked installation on ARM64
