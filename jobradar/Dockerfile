@@ -3,7 +3,10 @@ FROM python:3.12.16-slim-trixie@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194
 WORKDIR /app
 
 COPY requirements.txt /app/requirements.txt
-RUN python -m pip install --no-cache-dir --upgrade "pip==26.3" \
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends "zlib1g=1:1.3.dfsg+really1.3.1-1+deb13u1" \
+    && rm -rf /var/lib/apt/lists/* \
+    && python -m pip install --no-cache-dir --upgrade "pip==26.3" \
     && python -m pip install --no-cache-dir -r /app/requirements.txt
 
 COPY app/ /app/app/
