@@ -92,10 +92,18 @@ jobs:
           else
             echo "No committed lockfile yet; generated lock will be uploaded for review."
           fi
-      - name: Verify hash-checked installation
+      - name: Verify hash-checked installation on runner
         run: |
           python -m venv .venv-lock-check
           .venv-lock-check/bin/python -m pip install --disable-pip-version-check --require-hashes -r jobradar/requirements.lock
+      - name: Set up ARM64 emulation
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
+      - name: Verify hash-checked installation on ARM64
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v "$PWD/jobradar/requirements.lock:/tmp/requirements.lock:ro" \
+            python:3.12-slim-bookworm@sha256:935c3c5b12357a7e10caa9c1e6ca5692344d97cf229832ef584be2cec9fc03df \
+            python -m pip install --disable-pip-version-check --no-cache-dir --require-hashes -r /tmp/requirements.lock
       - name: Upload generated lockfile
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
