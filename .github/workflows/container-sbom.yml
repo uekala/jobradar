@@ -1,0 +1,66 @@
+name: Container image SBOM
+
+on:
+  pull_request:
+    paths:
+      - "jobradar/**"
+      - ".github/workflows/container-sbom.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "jobradar/**"
+      - ".github/workflows/container-sbom.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  container-sbom:
+    name: ARM64 container SBOM
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      - name: Build ARM64 image locally (no publish)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: ./jobradar
+          platforms: linux/arm64
+          push: false
+          load: true
+          tags: local/jobradar:sbom-arm64
+
+      - name: Generate CycloneDX SBOM from ARM64 image
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: local/jobradar:sbom-arm64
+          format: cyclonedx-json
+          output-file: sbom-jobradar-container-arm64.cdx.json
+          artifact-name: jobradar-container-arm64-sbom
+          upload-artifact: true
+          upload-artifact-retention: 90
+          upload-release-assets: false
+          dependency-snapshot: false
+          syft-version: v1.57.1
+
+      - name: Verify SBOM contains Debian OS packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s sbom-jobradar-container-arm64.cdx.json
+          component_count="$(jq '.components | length' sbom-jobradar-container-arm64.cdx.json)"
+          debian_count="$(jq '[.components[]? | select((.purl // "") | startswith("pkg:deb/"))] | length' sbom-jobradar-container-arm64.cdx.json)"
+          echo "SBOM components: ${component_count}"
+          echo "Debian package components: ${debian_count}"
+          test "${component_count}" -gt 0
+          test "${debian_count}" -gt 0
