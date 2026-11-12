@@ -28,7 +28,7 @@ jobs:
             requirements: "-r jobradar/requirements.txt -r jobradar/requirements-dev.txt"
             output: sbom-standalone-tests-python.cdx.json
           - scope: ha-integration-tests
-            python-version: "3.13"
+            python-version: "3.14"
             requirements: "-r requirements_test.txt"
             output: sbom-ha-integration-tests-python.cdx.json
     steps:
