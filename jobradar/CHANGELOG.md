@@ -9,6 +9,7 @@
 - Quellen können eine Mindestpunktzahl haben (`min_score`); neue Stellen darunter werden nicht aufgenommen.
 - Es läuft immer nur ein Suchlauf gleichzeitig.
 - **Korrektur:** Beim Bearbeiten einer Quelle im Dashboard gingen ihre Einstellungen verloren.
+- Die Datenübernahme nimmt den Export auch als eingefügten Text an. Die bisherige Übersichtsseite hat dafür die Schaltfläche „Export kopieren“.
 - Neue Schnittstelle `GET /api/schedule`.
 
 ## 0.4.0
