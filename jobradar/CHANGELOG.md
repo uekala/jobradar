@@ -1,5 +1,17 @@
 # Änderungen der Jobradar-App
 
+## 0.5.0
+
+- **Arbeitsagentur als Quelle.** Jobradar sucht jetzt direkt in der Jobbörse der Bundesagentur für Arbeit: im Umkreis und, wenn im Suchprofil gewählt, bundesweit nach Stellen mit Homeoffice. Gehalt, Homeoffice und die Beschreibung kommen aus der Anzeige. Einrichten über „Arbeitsagentur hinzufügen“ im Dashboard.
+- **Täglicher Suchlauf.** Die App sucht einmal am Tag von selbst, ab der Uhrzeit aus der Konfiguration (Standard 06:30 Uhr). War die App zu dieser Zeit aus, holt sie den Lauf am selben Tag nach.
+- **Meldung neuer Stellen.** Nach dem täglichen Lauf meldet Jobradar neue Stellen ab einer einstellbaren Punktzahl über einen Benachrichtigungsdienst von Home Assistant, mit den drei besten Treffern. Ein fehlgeschlagener Lauf wird ebenfalls gemeldet. Dafür braucht die App Zugriff auf die Home-Assistant-Schnittstelle.
+- Dieselbe Anzeige wird nicht doppelt angelegt, auch wenn sie aus dem bisherigen Jobradar unter einer anderen Kennung übernommen wurde. Status, Notiz und Punkte übernommener Stellen bleiben bei einem Suchlauf unverändert.
+- Quellen können eine Mindestpunktzahl haben (`min_score`); neue Stellen darunter werden nicht aufgenommen.
+- Es läuft immer nur ein Suchlauf gleichzeitig.
+- **Korrektur:** Beim Bearbeiten einer Quelle im Dashboard gingen ihre Einstellungen verloren.
+- Die Datenübernahme nimmt den Export auch als eingefügten Text an. Die bisherige Übersichtsseite hat dafür die Schaltfläche „Export kopieren“.
+- Neue Schnittstelle `GET /api/schedule`.
+
 ## 0.4.0
 
 - **Datenübernahme.** Im Dashboard unter „Datenübernahme“ lässt sich der Export des bisherigen Jobradars einlesen. Zuerst läuft immer ein Probelauf mit Bericht; übernommen wird erst nach Bestätigung und nur, wenn der Probelauf fehlerfrei ist.

@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import os
+import threading
 from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
@@ -14,6 +15,7 @@ from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from .automation import last_scheduled_date, load_options, search_loop
 from .backup import (
     BackupError,
     create_backup,
@@ -25,6 +27,7 @@ from .backup import (
 )
 from .database import connect, database_is_ready, initialize_database
 from .importer import imported_details, run_import
+from .sources.arbeitsagentur import search_vacancies as search_arbeitsagentur
 from .sources.karriere_nrw import search_vacancies
 from .scoring import evaluate_vacancy, evaluate_vacancy_detailed
 
@@ -103,6 +106,15 @@ async def lifespan(app: FastAPI):
     await asyncio.to_thread(run_scheduled_backup)
     stop = asyncio.Event()
     task = asyncio.create_task(backup_loop(stop, backup_check_interval()))
+    options = load_options()
+    app.state.options = options
+    search_task = None
+    if options["search_time"]:
+        _LOGGER.info(
+            "Täglicher Suchlauf ab %s Uhr, Benachrichtigung: %s",
+            options["search_time"], options["notify_service"] or "aus",
+        )
+        search_task = asyncio.create_task(search_loop(stop, perform_search_run, options))
     try:
         yield
     finally:
@@ -111,12 +123,14 @@ async def lifespan(app: FastAPI):
         # because every request uses its own short-lived connection.
         stop.set()
         await task
+        if search_task is not None:
+            await search_task
         _LOGGER.info("Jobradar beendet, Datenbank geschlossen")
 
 
 app = FastAPI(
     title="Jobradar",
-    version="0.4.0",
+    version="0.5.0",
     description="Lokaler, KI-unabhängiger Jobradar für Home Assistant",
     lifespan=lifespan,
 )
@@ -165,7 +179,7 @@ def dashboard() -> str:
 <section class="welcome"><div><h2>Guten Morgen.</h2><p>Hier ist deine aktuelle Jobübersicht.</p></div><span class="updated" id="updated">Daten werden geladen …</span></section>
 <section class="stats"><div class="stat"><label>Alle Stellen</label><strong id="total">–</strong><small>in deiner Jobdatenbank</small></div><div class="stat"><label>Neu</label><strong id="new">–</strong><small>noch nicht bearbeitet</small></div><div class="stat"><label>Gemerkte Stellen</label><strong id="saved">–</strong><small>interessante Möglichkeiten</small></div><div class="stat"><label>Ø Match-Score</label><strong id="average">–</strong><small>über alle bewerteten Stellen</small></div></section>
 <section class="content"><div class="panel"><div class="panel-head"><h3>Stellenangebote</h3><span class="muted" id="result-count">0 Treffer</span></div><div class="filters"><input id="search" placeholder="Position, Unternehmen oder Ort suchen …"><select id="status"><option value="">Alle Status</option><option value="neu">Neu</option><option value="gemerkt">Gemerkt</option><option value="beworben">Beworben</option><option value="absage">Absage</option><option value="verworfen">Verworfen</option></select><select id="minimum"><option value="">Alle Scores</option><option value="55">Ab 55 Punkten</option><option value="70">Ab 70 Punkten</option><option value="85">Ab 85 Punkten</option></select></div><div class="jobs" id="jobs"><div class="empty">Stellenangebote werden geladen …</div></div></div>
-<aside class="side"><div class="panel"><div class="panel-head"><h3>Statusübersicht</h3></div><div class="status-list" id="status-list"></div></div><div class="panel"><div class="panel-head"><h3>Stellensuche</h3><button class="btn primary" id="run-search">Suche starten</button></div><div class="runbox" id="search-feedback">Starte einen manuellen Suchlauf über alle unterstützten, aktivierten Quellen.</div><div class="divider" style="height:1px;background:var(--line);margin:14px 0"></div><h3>Letzter Suchlauf</h3><div class="runbox" id="last-run">Noch keine Suchläufe erfasst.</div></div><div class="panel"><div class="panel-head"><h3>Suchquellen</h3><button class="btn" id="add-karriere-source">Karriere.NRW hinzufügen</button><button class="btn primary" id="add-source">+ Quelle</button></div><div class="status-list" id="sources"><div class="muted">Quellen werden geladen …</div></div></div><div class="panel"><div class="panel-head"><h3>Suchprofil</h3><button class="btn primary" id="edit-profile">Bearbeiten</button></div><div class="runbox" id="profile-summary">Profil wird geladen …</div></div><div class="panel"><div class="panel-head"><h3>Bewertungsregeln</h3><button class="btn primary" id="add-rule">+ Regel</button></div><div class="status-list" id="rules"><div class="muted">Regeln werden geladen …</div></div><p class="muted" style="margin:12px 0 0">Regeln werden gespeichert. Die automatische Score-Berechnung folgt separat.</p></div><div class="panel"><div class="panel-head"><h3>Datenübernahme</h3></div><p class="muted" style="margin:10px 0">Export des bisherigen Jobradars einlesen. Zuerst läuft ein Probelauf; übernommen wird erst nach Bestätigung.</p><input type="file" id="import-file" accept="application/json,.json" style="width:100%"><label style="display:flex;align-items:center;gap:9px;margin:10px 0;color:var(--muted);font-size:12px"><input id="import-overwrite" type="checkbox" style="min-width:auto"> Vorhandenes Suchprofil ersetzen</label><div class="actions"><button class="btn" id="import-check">Probelauf</button><button class="btn primary" id="import-apply" disabled>Übernehmen</button></div><div class="runbox" id="import-result" aria-live="polite"></div></div><div class="panel"><h3>Hinweis</h3><p class="muted">Karriere.NRW kann direkt über „Karriere.NRW hinzufügen“ eingerichtet werden. Deine Suchbegriffe werden aus dem Suchprofil übernommen; alternativ kannst du eigene Begriffe in der Quellenverwaltung hinterlegen.</p></div></aside></section></main>
+<aside class="side"><div class="panel"><div class="panel-head"><h3>Statusübersicht</h3></div><div class="status-list" id="status-list"></div></div><div class="panel"><div class="panel-head"><h3>Stellensuche</h3><button class="btn primary" id="run-search">Suche starten</button></div><div class="runbox" id="search-feedback">Starte einen manuellen Suchlauf über alle unterstützten, aktivierten Quellen.</div><div class="divider" style="height:1px;background:var(--line);margin:14px 0"></div><h3>Letzter Suchlauf</h3><div class="runbox" id="last-run">Noch keine Suchläufe erfasst.</div><div class="runbox" id="schedule-info"></div></div><div class="panel"><div class="panel-head"><h3>Suchquellen</h3><button class="btn" id="add-ba-source">Arbeitsagentur hinzufügen</button><button class="btn" id="add-karriere-source">Karriere.NRW hinzufügen</button><button class="btn primary" id="add-source">+ Quelle</button></div><div class="status-list" id="sources"><div class="muted">Quellen werden geladen …</div></div></div><div class="panel"><div class="panel-head"><h3>Suchprofil</h3><button class="btn primary" id="edit-profile">Bearbeiten</button></div><div class="runbox" id="profile-summary">Profil wird geladen …</div></div><div class="panel"><div class="panel-head"><h3>Bewertungsregeln</h3><button class="btn primary" id="add-rule">+ Regel</button></div><div class="status-list" id="rules"><div class="muted">Regeln werden geladen …</div></div><p class="muted" style="margin:12px 0 0">Regeln werden gespeichert. Die automatische Score-Berechnung folgt separat.</p></div><div class="panel"><div class="panel-head"><h3>Datenübernahme</h3></div><p class="muted" style="margin:10px 0">Export des bisherigen Jobradars einlesen. Zuerst läuft ein Probelauf; übernommen wird erst nach Bestätigung.</p><input type="file" id="import-file" accept="application/json,.json" style="width:100%"><label for="import-text" style="display:block;color:var(--muted);font-size:12px;margin-top:10px">Oder den kopierten Export hier einfügen</label><textarea id="import-text" spellcheck="false" placeholder="{ &quot;_export&quot;: … }" style="width:100%;min-height:70px;margin-top:6px"></textarea><label style="display:flex;align-items:center;gap:9px;margin:10px 0;color:var(--muted);font-size:12px"><input id="import-overwrite" type="checkbox" style="min-width:auto"> Vorhandenes Suchprofil ersetzen</label><div class="actions"><button class="btn" id="import-check">Probelauf</button><button class="btn primary" id="import-apply" disabled>Übernehmen</button></div><div class="runbox" id="import-result" aria-live="polite"></div></div><div class="panel"><h3>Hinweis</h3><p class="muted">Arbeitsagentur und Karriere.NRW lassen sich direkt über „… hinzufügen“ einrichten. Deine Suchbegriffe werden aus dem Suchprofil übernommen; alternativ kannst du eigene Begriffe in der Quellenverwaltung hinterlegen. Uhrzeit des täglichen Suchlaufs und Benachrichtigung stellst du in der Konfiguration der App in Home Assistant ein.</p></div></aside></section></main>
 <div class="detail" id="detail"><div class="dialog"><div class="dialog-head"><div><h3 id="detail-title"></h3><div class="company" id="detail-company"></div></div><button class="btn" id="close">✕</button></div><div class="meta" id="detail-meta"></div><section class="score-breakdown" id="score-breakdown" aria-live="polite"><strong>So setzt sich der Match-Score zusammen</strong><div id="score-breakdown-items" class="score-breakdown-items"></div></section><section class="score-breakdown" id="imported-info" hidden><strong>Bisherige Einschätzung</strong><div id="imported-items" class="score-breakdown-items"></div></section><label for="detail-status">Status</label><select id="detail-status"><option value="neu">Neu</option><option value="gemerkt">Gemerkt</option><option value="beworben">Beworben</option><option value="absage">Absage</option><option value="verworfen">Verworfen</option></select><label for="detail-notes">Notizen</label><textarea id="detail-notes" placeholder="Deine Notizen zur Stelle …"></textarea><div class="actions"><a id="source-link" target="_blank" rel="noopener">Originalanzeige öffnen ↗</a><button class="btn primary" id="save">Änderungen speichern</button></div></div></div>
 <div class="detail" id="source-detail"><div class="dialog"><div class="dialog-head"><div><h3 id="source-heading">Suchquelle</h3><div class="muted">Quelle und Suchbegriffe verwalten</div></div><button class="btn" id="source-close">✕</button></div><form id="source-form"><label for="source-id">Technische ID</label><input id="source-id" required maxlength="100" placeholder="z. B. arbeitsagentur" style="width:100%;margin:7px 0 14px"><label for="source-name">Name</label><input id="source-name" required maxlength="200" style="width:100%;margin:7px 0 14px"><label for="source-type">Quellentyp</label><select id="source-type" style="width:100%;margin:7px 0 14px"><option value="web">Webseite</option><option value="api">API</option><option value="email">E-Mail</option><option value="manual">Manuell</option></select><label for="source-url">Basis-URL</label><input id="source-url" type="url" maxlength="2000" placeholder="https://…" style="width:100%;margin:7px 0 14px"><label for="source-queries">Suchbegriffe (eine Zeile pro Begriff)</label><textarea id="source-queries" placeholder="Systemadministrator&#10;IT-Infrastruktur" style="width:100%;margin:7px 0 14px"></textarea><label style="display:flex;align-items:center;gap:9px;margin:0 0 18px"><input id="source-enabled" type="checkbox" checked style="min-width:auto"> Quelle aktiv</label><div class="actions"><button type="button" class="btn" id="source-delete" style="display:none">Löschen</button><button type="submit" class="btn primary">Quelle speichern</button></div></form></div></div>
 <div class="detail" id="rule-detail"><div class="dialog"><div class="dialog-head"><div><h3 id="rule-heading">Bewertungsregel</h3><div class="muted">Begriffe und Gewichtung festlegen</div></div><button class="btn" id="rule-close">✕</button></div><form id="rule-form"><label for="r-id">Technische ID</label><input id="r-id" required maxlength="100" placeholder="z. B. linux-erfahrung" style="width:100%;margin:7px 0 14px"><label for="r-name">Name</label><input id="r-name" required maxlength="200" style="width:100%;margin:7px 0 14px"><label for="r-category">Regeltyp</label><select id="r-category" style="width:100%;margin:7px 0 14px"><option value="positive">Positiv – Treffer aufwerten</option><option value="negative">Negativ – Treffer abwerten</option><option value="exclude">Ausschluss – Treffer aussortieren</option></select><label for="r-terms">Suchbegriffe (eine Zeile pro Begriff)</label><textarea id="r-terms" style="width:100%;margin:7px 0 14px"></textarea><label for="r-weight">Gewichtung (-100 bis +100)</label><input id="r-weight" type="number" min="-100" max="100" value="10" style="width:100%;margin:7px 0 14px"><label for="r-description">Beschreibung (optional)</label><textarea id="r-description" style="width:100%;margin:7px 0 14px;min-height:65px"></textarea><label style="display:flex;align-items:center;gap:9px;margin:0 0 18px"><input id="r-enabled" type="checkbox" checked style="min-width:auto"> Regel aktiv</label><div class="actions"><button type="button" class="btn" id="rule-delete" style="display:none">Löschen</button><button type="submit" class="btn primary">Regel speichern</button></div></form></div></div><div class="detail" id="profile-detail"><div class="dialog"><div class="dialog-head"><div><h3>Suchprofil</h3><div class="muted">Deine Kriterien für passende Stellen</div></div><button class="btn" id="profile-close">✕</button></div><form id="profile-form"><label for="p-location">Suchregion</label><input id="p-location" placeholder="z. B. Krefeld" style="width:100%;margin:7px 0 14px"><label for="p-radius">Umkreis in Kilometern</label><input id="p-radius" type="number" min="0" max="1000" value="50" style="width:100%;margin:7px 0 14px"><label style="display:flex;align-items:center;gap:9px;margin:0 0 14px"><input id="p-remote" type="checkbox" style="min-width:auto"> Bundesweite Remote-Stellen berücksichtigen</label><label for="p-roles">Gewünschte Positionen (eine pro Zeile)</label><textarea id="p-roles" placeholder="Systemadministrator&#10;IT-Infrastruktur-Spezialist" style="width:100%;margin:7px 0 14px"></textarea><label for="p-skills">Kenntnisse (eine pro Zeile)</label><textarea id="p-skills" placeholder="Windows Server&#10;VMware vSphere&#10;Linux" style="width:100%;margin:7px 0 14px"></textarea><label for="p-salary">Gehaltsziel brutto/Jahr in Euro</label><input id="p-salary" type="number" min="0" step="1000" placeholder="70000" style="width:100%;margin:7px 0 14px"><label for="p-public">Mindestanforderung öffentlicher Dienst</label><input id="p-public" placeholder="z. B. TVöD EG 11 / TV-L EG 11" style="width:100%;margin:7px 0 14px"><label for="p-exclusions">Ausschlussunternehmen (eine pro Zeile)</label><textarea id="p-exclusions" placeholder="Unternehmen, die nicht angezeigt werden sollen" style="width:100%;margin:7px 0 14px"></textarea><div class="actions"><button type="submit" class="btn primary">Profil speichern</button></div></form></div></div>
@@ -176,18 +190,18 @@ async function api(path,options={}){const r=await fetch(path,{headers:{"Content-
 function render(){const q=$("search").value.trim().toLowerCase(),st=$("status").value,min=Number($("minimum").value||0);const shown=jobs.filter(j=>(!st||j.status===st)&&(!min||(j.score??0)>=min)&&(!q||[j.title,j.company,j.location].some(v=>(v||"").toLowerCase().includes(q))));$("result-count").textContent=shown.length+" Treffer";$("jobs").innerHTML=shown.length?shown.map(j=>'<article class="job" data-id="'+safe(j.id)+'"><div><h4>'+safe(j.title)+'</h4><div class="company">'+safe(j.company||"Unternehmen unbekannt")+'</div><div class="meta"><span>⌖ '+safe(j.location||"Ort offen")+'</span><span>'+safe(names[j.status]||j.status)+'</span><span>Zuletzt gesehen: '+date(j.last_seen_at)+'</span></div></div><div class="score">'+(j.score??"–")+'<small style="display:block;font-size:9px;font-weight:500">MATCH</small></div></article>').join(""):'<div class="empty">Keine passenden Stellen gefunden.</div>';document.querySelectorAll(".job").forEach(el=>el.addEventListener("click",()=>openJob(el.dataset.id)))}
 let profileData={};function lines(value){return Array.isArray(value)?value.join("\n"):""}async function loadProfile(){try{const result=await api("api/profile");profileData=result.data||{};$("profile-summary").innerHTML='<strong>'+safe(profileData.location||"Keine Region festgelegt")+'</strong><br>Umkreis: '+safe(profileData.radius_km??50)+' km<br>'+(profileData.nationwide_remote?"Bundesweite Remote-Jobs aktiv":"Nur regionale Suche")+'<br>'+(profileData.roles?.length||0)+' Zielpositionen · '+(profileData.skills?.length||0)+' Kenntnisse<br>Gehaltsziel: '+(profileData.salary_min?Number(profileData.salary_min).toLocaleString("de-DE")+" €":"Nicht festgelegt");$("p-location").value=profileData.location||"";$("p-radius").value=profileData.radius_km??50;$("p-remote").checked=!!profileData.nationwide_remote;$("p-roles").value=lines(profileData.roles);$("p-skills").value=lines(profileData.skills);$("p-salary").value=profileData.salary_min??"";$("p-public").value=profileData.public_service_minimum||"";$("p-exclusions").value=lines(profileData.exclusions)}catch(e){$("profile-summary").textContent="Profil konnte nicht geladen werden: "+e.message}}async function saveProfile(e){e.preventDefault();const data={...profileData,location:$("p-location").value.trim(),radius_km:Number($("p-radius").value||0),nationwide_remote:$("p-remote").checked,roles:$("p-roles").value.split("\n").map(x=>x.trim()).filter(Boolean),skills:$("p-skills").value.split("\n").map(x=>x.trim()).filter(Boolean),salary_min:$("p-salary").value?Number($("p-salary").value):null,public_service_minimum:$("p-public").value.trim(),exclusions:$("p-exclusions").value.split("\n").map(x=>x.trim()).filter(Boolean)};try{await api("api/profile",{method:"PUT",body:JSON.stringify({data})});profileData=data;$("profile-detail").classList.remove("open");await loadProfile()}catch(e){alert("Profil konnte nicht gespeichert werden: "+e.message)}}$("edit-profile").onclick=()=>$("profile-detail").classList.add("open");$("profile-close").onclick=()=>$("profile-detail").classList.remove("open");$("profile-form").onsubmit=saveProfile;
 let ruleItems=[],editingRule=null;async function loadRules(){try{const d=await api("api/rules");ruleItems=d.items||[];$("rules").innerHTML=ruleItems.length?ruleItems.map(r=>'<div class="status-row" style="align-items:center;gap:8px"><span><b style="color:var(--text)">'+safe(r.data.name||r.id)+'</b><small style="display:block;color:var(--muted)">'+safe(({positive:"Positiv",negative:"Negativ",exclude:"Ausschluss"})[r.data.category]||"Regel")+' · '+(r.data.enabled===false?"Pausiert":"Aktiv")+' · Gewicht '+safe(r.data.weight??0)+'</small></span><button class="btn" data-rule="'+safe(r.id)+'" style="padding:5px 8px">Bearbeiten</button></div>').join(""):'<div class="muted">Noch keine Bewertungsregeln angelegt.</div>';document.querySelectorAll("[data-rule]").forEach(b=>b.onclick=()=>editRule(b.dataset.rule))}catch(e){$("rules").textContent="Regeln konnten nicht geladen werden: "+e.message}}function editRule(id){editingRule=ruleItems.find(r=>r.id===id)||null;const d=editingRule?.data||{};$("rule-heading").textContent=editingRule?"Regel bearbeiten":"Regel hinzufügen";$("r-id").value=editingRule?.id||"";$("r-id").disabled=!!editingRule;$("r-name").value=d.name||"";$("r-category").value=d.category||"positive";$("r-terms").value=(d.terms||[]).join("\n");$("r-weight").value=d.weight??10;$("r-description").value=d.description||"";$("r-enabled").checked=d.enabled!==false;$("rule-delete").style.display=editingRule?"inline-block":"none";$("rule-detail").classList.add("open")}async function saveRule(e){e.preventDefault();const id=$("r-id").value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g,"-");const weight=Number($("r-weight").value);if(!id||!Number.isFinite(weight)||weight < -100||weight > 100){alert("Bitte ID und Gewichtung prüfen.");return}const data={name:$("r-name").value.trim(),category:$("r-category").value,terms:$("r-terms").value.split("\n").map(x=>x.trim()).filter(Boolean),weight,description:$("r-description").value.trim(),enabled:$("r-enabled").checked};try{await api("api/rules/"+encodeURIComponent(id),{method:"PUT",body:JSON.stringify({data})});$("rule-detail").classList.remove("open");await loadRules()}catch(e){alert("Regel konnte nicht gespeichert werden: "+e.message)}}async function deleteRule(){if(!editingRule||!confirm("Regel wirklich löschen?"))return;try{await api("api/rules/"+encodeURIComponent(editingRule.id),{method:"DELETE"});$("rule-detail").classList.remove("open");await loadRules()}catch(e){alert("Löschen fehlgeschlagen: "+e.message)}}$("add-rule").onclick=()=>editRule(null);$("rule-close").onclick=()=>$("rule-detail").classList.remove("open");$("rule-form").onsubmit=saveRule;$("rule-delete").onclick=deleteRule;
-let sourceItems=[],editingSource=null;async function loadSources(){try{const data=await api("api/sources");sourceItems=data.items;$("sources").innerHTML=sourceItems.length?sourceItems.map(s=>'<div class="status-row" style="align-items:center;gap:8px"><span><b style="color:var(--text)">'+safe(s.name)+'</b><small style="display:block;color:var(--muted)">'+safe(({web:"Web",api:"API",email:"E-Mail",manual:"Manuell"})[s.source_type]||s.source_type)+' · '+(s.enabled?"Aktiv":"Pausiert")+'</small></span><button class="btn" data-source="'+safe(s.id)+'" style="padding:5px 8px">Bearbeiten</button></div>').join(""):'<div class="muted">Noch keine Quellen angelegt.</div>';document.querySelectorAll("[data-source]").forEach(b=>b.onclick=()=>editSource(b.dataset.source))}catch(e){$("sources").textContent="Quellen konnten nicht geladen werden: "+e.message}}function editSource(id){editingSource=sourceItems.find(s=>s.id===id)||null;$("source-heading").textContent=editingSource?"Quelle bearbeiten":"Quelle hinzufügen";$("source-id").value=editingSource?.id||"";$("source-id").disabled=!!editingSource;$("source-name").value=editingSource?.name||"";$("source-type").value=editingSource?.source_type||"web";$("source-url").value=editingSource?.base_url||"";$("source-queries").value=(editingSource?.queries||[]).join("\n");$("source-enabled").checked=editingSource?.enabled??true;$("source-delete").style.display=editingSource?"inline-block":"none";$("source-detail").classList.add("open")}async function saveSource(e){e.preventDefault();const id=$("source-id").value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g,"-");if(!id){alert("Bitte eine gültige ID eingeben.");return}const payload={name:$("source-name").value.trim(),source_type:$("source-type").value,base_url:$("source-url").value.trim()||null,enabled:$("source-enabled").checked,queries:$("source-queries").value.split("\n").map(x=>x.trim()).filter(Boolean),config:{}};try{await api("api/sources/"+encodeURIComponent(id),{method:"PUT",body:JSON.stringify(payload)});$("source-detail").classList.remove("open");await loadSources()}catch(e){alert("Quelle konnte nicht gespeichert werden: "+e.message)}}async function deleteSource(){if(!editingSource||!confirm("Quelle \""+editingSource.name+"\" wirklich löschen?"))return;try{await api("api/sources/"+encodeURIComponent(editingSource.id),{method:"DELETE"});$("source-detail").classList.remove("open");await loadSources()}catch(e){alert("Löschen fehlgeschlagen: "+e.message)}}async function addKarriereSource(){if(sourceItems.some(s=>s.id==="karriere-nrw")){alert("Karriere.NRW ist bereits eingerichtet. Du kannst die Quelle über „Bearbeiten“ anpassen.");return}try{await api("api/sources/karriere-nrw",{method:"PUT",body:JSON.stringify({name:"Karriere.NRW",source_type:"api",base_url:"https://api.karriere.nrw/v1.0/opennrw",enabled:true,queries:[],config:{limit:50}})});await loadSources();alert("Karriere.NRW wurde aktiviert. Die Suchbegriffe und der Umkreis können im Suchprofil angepasst werden.")}catch(e){alert("Karriere.NRW konnte nicht eingerichtet werden: "+e.message)}}$("add-karriere-source").onclick=addKarriereSource;$("add-source").onclick=()=>editSource(null);$("source-close").onclick=()=>$("source-detail").classList.remove("open");$("source-form").onsubmit=saveSource;$("source-delete").onclick=deleteSource;
+let sourceItems=[],editingSource=null;async function loadSources(){try{const data=await api("api/sources");sourceItems=data.items;$("sources").innerHTML=sourceItems.length?sourceItems.map(s=>'<div class="status-row" style="align-items:center;gap:8px"><span><b style="color:var(--text)">'+safe(s.name)+'</b><small style="display:block;color:var(--muted)">'+safe(({web:"Web",api:"API",email:"E-Mail",manual:"Manuell"})[s.source_type]||s.source_type)+' · '+(s.enabled?"Aktiv":"Pausiert")+'</small></span><button class="btn" data-source="'+safe(s.id)+'" style="padding:5px 8px">Bearbeiten</button></div>').join(""):'<div class="muted">Noch keine Quellen angelegt.</div>';document.querySelectorAll("[data-source]").forEach(b=>b.onclick=()=>editSource(b.dataset.source))}catch(e){$("sources").textContent="Quellen konnten nicht geladen werden: "+e.message}}function editSource(id){editingSource=sourceItems.find(s=>s.id===id)||null;$("source-heading").textContent=editingSource?"Quelle bearbeiten":"Quelle hinzufügen";$("source-id").value=editingSource?.id||"";$("source-id").disabled=!!editingSource;$("source-name").value=editingSource?.name||"";$("source-type").value=editingSource?.source_type||"web";$("source-url").value=editingSource?.base_url||"";$("source-queries").value=(editingSource?.queries||[]).join("\n");$("source-enabled").checked=editingSource?.enabled??true;$("source-delete").style.display=editingSource?"inline-block":"none";$("source-detail").classList.add("open")}async function saveSource(e){e.preventDefault();const id=$("source-id").value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g,"-");if(!id){alert("Bitte eine gültige ID eingeben.");return}const payload={name:$("source-name").value.trim(),source_type:$("source-type").value,base_url:$("source-url").value.trim()||null,enabled:$("source-enabled").checked,queries:$("source-queries").value.split("\n").map(x=>x.trim()).filter(Boolean),config:editingSource?.config||{}};try{await api("api/sources/"+encodeURIComponent(id),{method:"PUT",body:JSON.stringify(payload)});$("source-detail").classList.remove("open");await loadSources()}catch(e){alert("Quelle konnte nicht gespeichert werden: "+e.message)}}async function deleteSource(){if(!editingSource||!confirm("Quelle \""+editingSource.name+"\" wirklich löschen?"))return;try{await api("api/sources/"+encodeURIComponent(editingSource.id),{method:"DELETE"});$("source-detail").classList.remove("open");await loadSources()}catch(e){alert("Löschen fehlgeschlagen: "+e.message)}}async function addKarriereSource(){if(sourceItems.some(s=>s.id==="karriere-nrw")){alert("Karriere.NRW ist bereits eingerichtet. Du kannst die Quelle über „Bearbeiten“ anpassen.");return}try{await api("api/sources/karriere-nrw",{method:"PUT",body:JSON.stringify({name:"Karriere.NRW",source_type:"api",base_url:"https://api.karriere.nrw/v1.0/opennrw",enabled:true,queries:[],config:{limit:50}})});await loadSources();alert("Karriere.NRW wurde aktiviert. Die Suchbegriffe und der Umkreis können im Suchprofil angepasst werden.")}catch(e){alert("Karriere.NRW konnte nicht eingerichtet werden: "+e.message)}}async function addBaSource(){if(sourceItems.some(s=>s.id==="arbeitsagentur")){alert("Die Arbeitsagentur ist bereits eingerichtet. Du kannst die Quelle über „Bearbeiten“ anpassen.");return}try{await api("api/sources/arbeitsagentur",{method:"PUT",body:JSON.stringify({name:"Arbeitsagentur",source_type:"api",base_url:"https://rest.arbeitsagentur.de/jobboerse/jobsuche-service",enabled:true,queries:[],config:{days:7,min_score:55,max_details:40}})});await loadSources();alert("Die Arbeitsagentur wurde aktiviert. Suchbegriffe, Umkreis und bundesweite Remote-Stellen kommen aus dem Suchprofil.")}catch(e){alert("Die Arbeitsagentur konnte nicht eingerichtet werden: "+e.message)}}async function loadSchedule(){try{const s=await api("api/schedule");$("schedule-info").textContent=s.search_time?"Täglicher Suchlauf ab "+s.search_time+" Uhr · Benachrichtigung "+(s.notify?"ab "+s.notify_min_score+" Punkten":"aus"):"Kein täglicher Suchlauf eingestellt."}catch(e){$("schedule-info").textContent=""}}$("add-ba-source").onclick=addBaSource;$("add-karriere-source").onclick=addKarriereSource;$("add-source").onclick=()=>editSource(null);$("source-close").onclick=()=>$("source-detail").classList.remove("open");$("source-form").onsubmit=saveSource;$("source-delete").onclick=deleteSource;
 async function runSearch(){const button=$("run-search"),feedback=$("search-feedback");button.disabled=true;button.textContent="Suche läuft …";feedback.textContent="Quellen werden abgefragt. Das kann einen Moment dauern.";try{const result=await api("api/search/run",{method:"POST"});const run=result.run;feedback.textContent="Abgeschlossen: "+run.jobs_found+" Anzeigen gefunden, davon "+run.jobs_new+" neu. Tatsächlich abgefragt: "+result.sources_checked+" Quelle(n)."+(result.sources_skipped?.length?" Noch nicht angebunden: "+result.sources_skipped.map(s=>s.name).join(", ")+".":"")+(result.errors?.length?" Fehler: "+result.errors.join("; "):"");await refresh();}catch(e){feedback.textContent="Suchlauf fehlgeschlagen: "+e.message;}finally{button.disabled=false;button.textContent="Suche starten";}}
 $("run-search").onclick=runSearch;
 let importPayload=null;
 function importReport(r){const c=r.collections||{};const parts=Object.entries(c).map(([k,v])=>safe(k)+": "+v.to_import+" von "+v.found+(v.already_imported?" ("+v.already_imported+" schon übernommen)":""));let html='<strong>'+(r.applied?"Übernommen":(r.dry_run?"Probelauf":"Nicht übernommen"))+'</strong><br>'+parts.join("<br>");if(r.errors&&r.errors.length)html+='<br><strong style="color:#ff9b9b">Fehler ('+r.errors.length+')</strong><br>'+r.errors.map(safe).join("<br>");if(r.warnings&&r.warnings.length)html+='<br><strong>Hinweise ('+r.warnings.length+')</strong><br>'+r.warnings.slice(0,12).map(safe).join("<br>")+(r.warnings.length>12?"<br>…":"");return html}
 async function postImport(dry){const r=await fetch("api/import?dry_run="+dry+"&overwrite_profile="+$("import-overwrite").checked,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(importPayload)});const body=await r.json().catch(()=>({}));if(!r.ok&&!body.collections)throw new Error(typeof body.detail==="string"?body.detail:r.statusText);return body}
-async function importCheck(){$("import-apply").disabled=true;const f=$("import-file").files[0];if(!f){$("import-result").textContent="Bitte zuerst die Exportdatei auswählen.";return}try{importPayload=JSON.parse(await f.text());const r=await postImport(true);$("import-result").innerHTML=importReport(r);$("import-apply").disabled=r.errors.length>0}catch(e){importPayload=null;$("import-result").textContent="Probelauf fehlgeschlagen: "+e.message}}
+async function importCheck(){$("import-apply").disabled=true;const f=$("import-file").files[0],pasted=$("import-text").value.trim();if(!f&&!pasted){$("import-result").textContent="Bitte zuerst die Exportdatei auswählen oder den Export einfügen.";return}try{importPayload=JSON.parse(f?await f.text():pasted);const r=await postImport(true);$("import-result").innerHTML=importReport(r);$("import-apply").disabled=r.errors.length>0}catch(e){importPayload=null;$("import-result").textContent="Probelauf fehlgeschlagen: "+e.message}}
 async function importApply(){if(!importPayload||!confirm("Daten jetzt übernehmen?"))return;$("import-apply").disabled=true;try{const r=await postImport(false);$("import-result").innerHTML=importReport(r);await refresh();loadProfile();loadRules()}catch(e){$("import-result").textContent="Übernahme fehlgeschlagen: "+e.message}}
-$("import-check").onclick=importCheck;$("import-apply").onclick=importApply;$("import-file").onchange=()=>{importPayload=null;$("import-apply").disabled=true;$("import-result").textContent="Datei gewählt. Jetzt den Probelauf starten."};$("import-overwrite").onchange=()=>{$("import-apply").disabled=true};
+$("import-check").onclick=importCheck;$("import-apply").onclick=importApply;$("import-file").onchange=()=>{importPayload=null;$("import-apply").disabled=true;$("import-result").textContent="Datei gewählt. Jetzt den Probelauf starten."};$("import-overwrite").onchange=()=>{$("import-apply").disabled=true};$("import-text").oninput=()=>{importPayload=null;$("import-apply").disabled=true;$("import-result").textContent=$("import-text").value.trim()?"Export eingefügt. Jetzt den Probelauf starten.":""};
 async function refresh(){try{const pair=await Promise.all([api("api/overview"),api("api/jobs?limit=200")]);const o=pair[0];jobs=pair[1].items;$("total").textContent=o.jobs_total;$("new").textContent=o.jobs_by_status.neu||0;$("saved").textContent=o.jobs_by_status.gemerkt||0;$("average").textContent=o.average_score==null?"–":o.average_score;$("status-list").innerHTML=Object.entries(names).map(([k,v])=>'<div class="status-row"><span>'+v+'</span><b>'+(o.jobs_by_status[k]||0)+'</b></div>').join("");$("last-run").innerHTML=o.latest_run?'<strong>'+safe(o.latest_run.status)+'</strong><br>'+date(o.latest_run.started_at)+'<br>'+o.latest_run.jobs_found+' Anzeigen gefunden · '+o.latest_run.jobs_new+' neu':"Noch keine Suchläufe erfasst.";$("updated").textContent="Aktualisiert: "+new Date().toLocaleTimeString("de-DE",{hour:"2-digit",minute:"2-digit"});render()}catch(e){$("jobs").innerHTML='<div class="empty">Daten konnten nicht geladen werden: '+safe(e.message)+'</div>';$("updated").textContent="Verbindung fehlgeschlagen"}}
 async function openJob(id){try{selected=await api("api/jobs/"+encodeURIComponent(id));$("detail-title").textContent=selected.title;$("detail-company").textContent=selected.company||"Unternehmen unbekannt";$("detail-meta").textContent=[selected.location,selected.source,selected.score!=null?selected.score+" Match-Punkte":null].filter(Boolean).join(" · ");const factors=selected.score_breakdown||[];$("score-breakdown-items").innerHTML=factors.length?factors.map(f=>'<div class="score-factor"><span>'+safe(f.label)+'</span><b>'+(Number(f.points)>0?"+":"")+Number(f.points)+' Pkt.</b><small>'+safe(f.detail)+'</small></div>').join(""):'<span class="muted">Keine Bewertungsdetails verfügbar.</span>';const imp=selected.imported;$("imported-info").hidden=!imp;if(imp){$("imported-items").innerHTML=[["Passt, weil",imp.why],["Aber",imp.concerns],["Gehalt",imp.salary],["Homeoffice",imp.homeoffice===true?"ja":imp.homeoffice===false?"nein":""],["Veröffentlicht",imp.published]].filter(x=>x[1]).map(x=>'<div class="score-factor"><span>'+safe(x[0])+'</span><small>'+safe(x[1])+'</small></div>').join("")||'<span class="muted">Keine weiteren Angaben.</span>'}$("detail-status").value=selected.status;$("detail-notes").value=selected.notes||"";$("source-link").href=selected.url||"#";$("source-link").style.visibility=selected.url?"visible":"hidden";$("detail").classList.add("open")}catch(e){alert(e.message)}}
-$("close").onclick=()=>$("detail").classList.remove("open");$("detail").addEventListener("click",e=>{if(e.target===$("detail"))$("detail").classList.remove("open")});$("save").onclick=async()=>{if(!selected)return;try{await api("api/jobs/"+encodeURIComponent(selected.id),{method:"PATCH",body:JSON.stringify({status:$("detail-status").value,notes:$("detail-notes").value})});$("detail").classList.remove("open");await refresh()}catch(e){alert("Speichern fehlgeschlagen: "+e.message)}};["search","status","minimum"].forEach(id=>$(id).addEventListener(id==="search"?"input":"change",render));refresh();loadSources();loadProfile();loadRules();
+$("close").onclick=()=>$("detail").classList.remove("open");$("detail").addEventListener("click",e=>{if(e.target===$("detail"))$("detail").classList.remove("open")});$("save").onclick=async()=>{if(!selected)return;try{await api("api/jobs/"+encodeURIComponent(selected.id),{method:"PATCH",body:JSON.stringify({status:$("detail-status").value,notes:$("detail-notes").value})});$("detail").classList.remove("open");await refresh()}catch(e){alert("Speichern fehlgeschlagen: "+e.message)}};["search","status","minimum"].forEach(id=>$(id).addEventListener(id==="search"?"input":"change",render));refresh();loadSources();loadProfile();loadRules();loadSchedule();
 </script></body></html>"""
 
 
@@ -200,6 +214,19 @@ def health() -> dict[str, str]:
 @app.get("/api/meta")
 def metadata() -> dict[str, str]:
     return {"name": "Jobradar", "version": app.version, "mode": "standalone"}
+
+
+@app.get("/api/schedule")
+def schedule() -> dict[str, Any]:
+    """Daily search schedule as configured in the app options."""
+    options = getattr(app.state, "options", None) or load_options()
+    return {
+        "search_time": options["search_time"] or None,
+        "notify": bool(options["notify_service"]),
+        "notify_min_score": options["notify_min_score"],
+        "last_scheduled": last_scheduled_date(),
+        "supported_sources": sorted(SOURCE_ADAPTERS),
+    }
 
 
 @app.get("/api/backups")
@@ -628,9 +655,73 @@ def delete_source(source_id: str) -> None:
             raise HTTPException(status_code=404, detail="Quelle nicht gefunden")
 
 
-@app.post("/api/search/run", status_code=200)
-def run_enabled_search() -> dict[str, Any]:
-    """Run the supported public source adapters and persist normalized vacancies."""
+def _source_settings(source: Any, profile: dict[str, Any]) -> dict[str, Any]:
+    """Search terms and options of one source, with the profile as fallback."""
+    queries = json.loads(source["query_json"]) or profile.get("roles", [])
+    config = json.loads(source["config_json"])
+    radius = config.get("radius_km", profile.get("radius_km", 50))
+    return {
+        "queries": queries,
+        "config": config,
+        "location": config.get("location") or profile.get("location"),
+        "radius_km": int(radius) if radius is not None else None,
+    }
+
+
+def _search_karriere_nrw(source: Any, profile: dict[str, Any], known_ids: set[str]) -> list[dict]:
+    settings = _source_settings(source, profile)
+    return search_vacancies(
+        terms=settings["queries"],
+        location=settings["location"],
+        radius_km=settings["radius_km"],
+        limit=int(settings["config"].get("limit", 50)),
+    )
+
+
+def _search_arbeitsagentur(source: Any, profile: dict[str, Any], known_ids: set[str]) -> list[dict]:
+    settings = _source_settings(source, profile)
+    config = settings["config"]
+    return search_arbeitsagentur(
+        terms=settings["queries"],
+        location=settings["location"],
+        radius_km=settings["radius_km"],
+        include_remote=bool(config.get("include_remote", profile.get("nationwide_remote", False))),
+        days=int(config.get("days", 7)),
+        limit=int(config.get("limit", 150)),
+        max_details=int(config.get("max_details", 40)),
+        exclude_temp_agencies=bool(config.get("exclude_temp_agencies", False)),
+        known_ids=known_ids,
+    )
+
+
+# Sources with a working adapter. Other enabled sources are reported as skipped.
+SOURCE_ADAPTERS: dict[str, Any] = {
+    "karriere-nrw": _search_karriere_nrw,
+    "arbeitsagentur": _search_arbeitsagentur,
+}
+
+_search_lock = threading.Lock()
+
+
+class SearchAlreadyRunning(RuntimeError):
+    """A search run is in progress; a second one would duplicate requests."""
+
+
+def perform_search_run(trigger: str = "manual") -> dict[str, Any]:
+    """Run all supported, enabled sources once and persist the vacancies.
+
+    Used by the dashboard button and by the daily schedule. Only one run at a
+    time: a second call raises ``SearchAlreadyRunning``.
+    """
+    if not _search_lock.acquire(blocking=False):
+        raise SearchAlreadyRunning("Es läuft bereits ein Suchlauf")
+    try:
+        return _search_run(trigger)
+    finally:
+        _search_lock.release()
+
+
+def _search_run(trigger: str) -> dict[str, Any]:
     with connect() as db:
         profile_row = db.execute("SELECT data_json FROM profile WHERE id = 1").fetchone()
         profile = json.loads(profile_row["data_json"]) if profile_row else {}
@@ -639,20 +730,23 @@ def run_enabled_search() -> dict[str, Any]:
         sources = db.execute(
             "SELECT * FROM job_sources WHERE enabled = 1 ORDER BY name COLLATE NOCASE"
         ).fetchall()
+        known_ids = {row["id"] for row in db.execute("SELECT id FROM jobs")}
 
     started = now_iso()
     with connect() as db:
         cursor = db.execute(
-            "INSERT INTO runs (started_at, status) VALUES (?, 'running')", (started,)
+            "INSERT INTO runs (started_at, status, note) VALUES (?, 'running', ?)",
+            (started, "Täglicher Suchlauf" if trigger == "schedule" else None),
         )
         run_id = cursor.lastrowid
 
     found_total = 0
     new_total = 0
+    new_ids: list[str] = []
     errors: list[str] = []
     supported_sources = [
         source for source in sources
-        if source["id"] == "karriere-nrw" and source["source_type"] == "api"
+        if source["id"] in SOURCE_ADAPTERS and source["source_type"] == "api"
     ]
     skipped_sources = [
         {"id": source["id"], "name": source["name"], "source_type": source["source_type"]}
@@ -660,57 +754,76 @@ def run_enabled_search() -> dict[str, Any]:
         if source not in supported_sources
     ]
     for source in supported_sources:
-        source_id = source["id"]
         try:
-            queries = json.loads(source["query_json"])
-            if not queries:
-                queries = profile.get("roles", [])
             config = json.loads(source["config_json"])
-            location = config.get("location") or profile.get("location")
-            radius = config.get("radius_km", profile.get("radius_km", 50))
-            vacancies = search_vacancies(
-                terms=queries,
-                location=location,
-                radius_km=int(radius) if radius is not None else None,
-                limit=int(config.get("limit", 50)),
-            )
+            min_score = int(config.get("min_score", 0) or 0)
+            vacancies = SOURCE_ADAPTERS[source["id"]](source, profile, known_ids)
             now = now_iso()
             with connect() as db:
                 for vacancy in vacancies:
                     score, excluded = evaluate_vacancy(vacancy, profile, rules)
                     if excluded:
                         continue
-                    found_total += 1
                     exists = db.execute(
-                        "SELECT id FROM jobs WHERE id = ?", (vacancy["id"],)
+                        "SELECT id, imported_score FROM jobs WHERE id = ?", (vacancy["id"],)
                     ).fetchone()
+                    duplicate = None
+                    if exists is None and vacancy.get("url"):
+                        # The same advertisement under another id, e.g. taken over
+                        # from the previous Jobradar: keep that entry, do not add a second.
+                        duplicate = db.execute(
+                            "SELECT id FROM jobs WHERE url = ? LIMIT 1", (vacancy["url"],)
+                        ).fetchone()
+                    if duplicate is not None or (exists is not None and exists["imported_score"] is not None):
+                        found_total += 1
+                        db.execute(
+                            "UPDATE jobs SET last_seen_at=? WHERE id=?",
+                            (now, (duplicate or exists)["id"]),
+                        )
+                        continue
                     if exists is None:
+                        if score < min_score:
+                            continue
+                        found_total += 1
                         new_total += 1
+                        new_ids.append(vacancy["id"])
+                        known_ids.add(vacancy["id"])
                         db.execute(
                             """INSERT INTO jobs
-                            (id,title,company,location,url,source,description,score,base_score,status,notes,
+                            (id,title,company,location,url,source,description,salary_min,salary_max,
+                             remote_type,score,base_score,status,notes,
                              published_at,first_seen_at,last_seen_at,created_at,updated_at,raw_json)
-                            VALUES (?,?,?,?,?,?,?,?,?,'neu','',?,?,?,?,?,?)""",
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'neu','',?,?,?,?,?,?)""",
                             (
-                                vacancy["id"], vacancy["title"], vacancy["company"],
-                                vacancy["location"], vacancy["url"], vacancy["source"],
-                                vacancy["description"], score, score, vacancy["published_at"], now, now,
+                                vacancy["id"], vacancy["title"], vacancy.get("company"),
+                                vacancy.get("location"), vacancy.get("url"), vacancy.get("source"),
+                                vacancy.get("description"), vacancy.get("salary_min"),
+                                vacancy.get("salary_max"), vacancy.get("remote_type"),
+                                score, score, vacancy.get("published_at"), now, now,
                                 now, now, json.dumps(vacancy.get("raw", {}), ensure_ascii=False),
                             ),
                         )
                     else:
-                        db.execute(
-                            """UPDATE jobs SET title=?,company=?,location=?,url=?,source=?,description=?,
-                            base_score=?,score=CASE WHEN status IN ('gemerkt','verworfen') THEN score ELSE ? END,
-                            published_at=?,last_seen_at=?,updated_at=?,raw_json=? WHERE id=?""",
-                            (
-                                vacancy["title"], vacancy["company"], vacancy["location"],
-                                vacancy["url"], vacancy["source"], vacancy["description"],
-                                score, score, vacancy["published_at"], now, now,
-                                json.dumps(vacancy.get("raw", {}), ensure_ascii=False), vacancy["id"],
-                            ),
-                        )
-        except Exception as exc:
+                        found_total += 1
+                        # A hit without details (already known, so not requested again)
+                        # must not wipe the stored description or lower the score.
+                        if vacancy.get("description"):
+                            db.execute(
+                                """UPDATE jobs SET title=?,company=?,location=?,url=?,source=?,description=?,
+                                base_score=?,score=CASE WHEN status IN ('gemerkt','verworfen') THEN score ELSE ? END,
+                                published_at=?,last_seen_at=?,updated_at=?,raw_json=? WHERE id=?""",
+                                (
+                                    vacancy["title"], vacancy.get("company"), vacancy.get("location"),
+                                    vacancy.get("url"), vacancy.get("source"), vacancy["description"],
+                                    score, score, vacancy.get("published_at"), now, now,
+                                    json.dumps(vacancy.get("raw", {}), ensure_ascii=False), vacancy["id"],
+                                ),
+                            )
+                        else:
+                            db.execute(
+                                "UPDATE jobs SET last_seen_at=? WHERE id=?", (now, vacancy["id"])
+                            )
+        except Exception as exc:  # noqa: BLE001 - one failing source must not stop the others
             errors.append(f"{source['name']}: {exc}")
 
     with connect() as db:
@@ -720,8 +833,36 @@ def run_enabled_search() -> dict[str, Any]:
     error_summary = "; ".join(errors)[:2000] if errors else None
     with connect() as db:
         db.execute(
-            "UPDATE runs SET finished_at=?,status=?,jobs_found=?,jobs_new=?,error_summary=? WHERE id=?",
-            (now_iso(), status, found_total, new_total, error_summary, run_id),
+            "UPDATE runs SET finished_at=?,status=?,jobs_found=?,jobs_new=?,error_summary=?,sources=? WHERE id=?",
+            (
+                now_iso(), status, found_total, new_total, error_summary,
+                ", ".join(source["name"] for source in supported_sources) or None, run_id,
+            ),
         )
         row = db.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
-    return {"run": dict(row), "sources_checked": len(supported_sources), "sources_skipped": skipped_sources, "errors": errors}
+        new_jobs = []
+        if new_ids:
+            marks = ",".join("?" for _ in new_ids)
+            new_jobs = [
+                dict(job) for job in db.execute(
+                    f"SELECT id,title,company,location,score FROM jobs WHERE id IN ({marks}) "
+                    "ORDER BY score DESC, title COLLATE NOCASE",
+                    new_ids,
+                )
+            ]
+    return {
+        "run": dict(row),
+        "sources_checked": len(supported_sources),
+        "sources_skipped": skipped_sources,
+        "errors": errors,
+        "new_jobs": new_jobs,
+    }
+
+
+@app.post("/api/search/run", status_code=200)
+def run_enabled_search() -> dict[str, Any]:
+    """Run the supported public source adapters and persist normalized vacancies."""
+    try:
+        return perform_search_run("manual")
+    except SearchAlreadyRunning as err:
+        raise HTTPException(status_code=409, detail=str(err)) from err

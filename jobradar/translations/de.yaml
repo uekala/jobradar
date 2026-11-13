@@ -1,0 +1,15 @@
+configuration:
+  search_time:
+    name: Uhrzeit des täglichen Suchlaufs
+    description: >-
+      Ab dieser Uhrzeit (HH:MM) sucht Jobradar einmal am Tag bei allen
+      aktiven Quellen. Leer lassen, um nur von Hand zu suchen.
+  notify_service:
+    name: Benachrichtigungsdienst
+    description: >-
+      Dienst für die Meldung neuer Stellen, zum Beispiel
+      notify.mobile_app_mein_handy oder persistent_notification.
+      Leer lassen für keine Meldung.
+  notify_min_score:
+    name: Melden ab Punkten
+    description: Neue Stellen werden erst ab dieser Punktzahl gemeldet.

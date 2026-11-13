@@ -164,6 +164,18 @@ details.profile > summary { cursor: pointer; padding: 12px 16px; font-weight: 60
       </div>
     </form>
   </details>
+
+  <details class="profile" id="export">
+    <summary>Daten für den Umzug exportieren</summary>
+    <p class="note" style="padding: 0 16px">Kopiert alle Stellen, Läufe, das Suchprofil und die Regeln als Export für die Datenübernahme in die Jobradar-App. Der Export liest nur und ändert nichts.</p>
+    <div class="form">
+      <div class="wide row">
+        <button class="save" type="button" id="export-copy">Export kopieren</button>
+        <span class="note" id="export-status" role="status" aria-live="polite"></span>
+      </div>
+      <label class="wide" id="export-field" hidden><span>Export (falls das Kopieren nicht klappt: Text markieren und kopieren)</span><textarea id="export-text" readonly spellcheck="false"></textarea></label>
+    </div>
+  </details>
 </div>
 
 <script>
@@ -386,6 +398,80 @@ $("profile-form").addEventListener("submit", async (e) => {
   } finally {
     submit.disabled = false;
     submit.removeAttribute("aria-busy");
+  }
+});
+
+const EXPORT_COLLECTIONS = ["jobs", "laeufe", "profil", "regeln", "pflege"];
+
+async function readCollection(name) {
+  const collection = state.db.collection(name);
+  if (typeof collection.get === "function") return (await collection.get()).docs;
+  return new Promise((resolve, reject) => {
+    let stop = null;
+    stop = collection.onSnapshot((snap) => {
+      resolve(snap.docs);
+      setTimeout(() => { try { if (typeof stop === "function") stop(); } catch {} }, 0);
+    }, reject);
+  });
+}
+
+async function buildExport() {
+  const collections = {};
+  const counts = {};
+  let total = 0;
+  for (const name of EXPORT_COLLECTIONS) {
+    const docs = await readCollection(name);
+    collections[name] = docs.map((d) => {
+      const entry = { id: d.id, path: `${name}/${d.id}` };
+      if (Number.isInteger(d.version)) entry.version = d.version;
+      if (typeof d.updatedAt === "string") entry.updatedAt = d.updatedAt;
+      entry.data = d.data();
+      return entry;
+    }).sort((a, b) => a.id.localeCompare(b.id));
+    counts[name] = collections[name].length;
+    total += counts[name];
+  }
+  return {
+    _export: {
+      typ: "jobradar-datenexport",
+      formatversion: 1,
+      erstellt_utc: new Date().toISOString(),
+      anzahl_je_collection: counts,
+      dokumente_exportiert: total,
+    },
+    collections,
+  };
+}
+
+$("export-copy").addEventListener("click", async () => {
+  const button = $("export-copy");
+  const status = $("export-status");
+  if (!state.db) {
+    status.textContent = "Nicht möglich: Datenbank nicht verfügbar. Öffne die Seite angemeldet in Claude.";
+    return;
+  }
+  button.disabled = true;
+  status.textContent = "Export wird erstellt …";
+  try {
+    const data = await buildExport();
+    const text = JSON.stringify(data, null, 2);
+    const counts = data._export.anzahl_je_collection;
+    const summary = `${data._export.dokumente_exportiert} Dokumente (${counts.jobs} Stellen, ${counts.laeufe} Läufe)`;
+    $("export-text").value = text;
+    $("export-field").hidden = false;
+    let copied = false;
+    try { await navigator.clipboard.writeText(text); copied = true; } catch {}
+    if (copied) {
+      status.textContent = `${summary} kopiert. In der Jobradar-App unter „Datenübernahme“ einfügen.`;
+    } else {
+      $("export-text").focus();
+      $("export-text").select();
+      status.textContent = `${summary} erstellt. Kopieren war nicht möglich: Text unten markieren und kopieren.`;
+    }
+  } catch (err) {
+    status.textContent = `Export fehlgeschlagen: ${errorMessage(err)}`;
+  } finally {
+    button.disabled = false;
   }
 });
 
