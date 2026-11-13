@@ -358,8 +358,8 @@ def test_dashboard_exposes_manual_search_control(tmp_path, monkeypatch):
 def test_search_run_reports_unsupported_enabled_sources_as_skipped(tmp_path, monkeypatch):
     client, _ = client_for(tmp_path, monkeypatch)
     try:
-        client.put("/api/sources/arbeitsagentur", json={
-            "name": "Arbeitsagentur",
+        client.put("/api/sources/stepstone", json={
+            "name": "StepStone",
             "source_type": "api",
             "enabled": True,
             "queries": ["Systemadministrator"],
@@ -370,8 +370,8 @@ def test_search_run_reports_unsupported_enabled_sources_as_skipped(tmp_path, mon
         result = response.json()
         assert result["sources_checked"] == 0
         assert result["sources_skipped"] == [{
-            "id": "arbeitsagentur",
-            "name": "Arbeitsagentur",
+            "id": "stepstone",
+            "name": "StepStone",
             "source_type": "api",
         }]
         assert result["run"]["status"] == "partial"

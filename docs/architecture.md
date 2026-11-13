@@ -122,3 +122,13 @@ Selbst prüfen: `cd jobradar && pytest -q tests/test_cold_backup_cycle.py -v`.
 - **Phase 7 – Bewerbungsworkflow:** optionale Anbindung des bestehenden Bewerbungs-Assistenten.
 
 Jede Phase erhält automatisierte Tests und wird erst danach auf Home Assistant aktualisiert.
+
+## Suchlauf, Zeitplan und Benachrichtigung (ab 0.5.0)
+
+- **Quellen mit Adapter:** `arbeitsagentur` (Jobsuche der Bundesagentur für Arbeit) und `karriere-nrw`. Eine Quelle wird abgefragt, wenn sie aktiv ist, den Typ „API“ hat und ihre ID einen Adapter besitzt; alle anderen aktiven Quellen nennt der Lauf als „noch nicht angebunden“.
+- **Einstellungen je Quelle** (`config`): `days` (Alter der Anzeigen in Tagen, Standard 7), `min_score` (neue Stellen darunter werden nicht aufgenommen), `max_details` (Detailabrufe je Lauf, Standard 40), `limit`, `include_remote`, `exclude_temp_agencies`, `location`, `radius_km`. Ohne eigene Suchbegriffe gelten die Zielpositionen aus dem Suchprofil.
+- **Arbeitsagentur:** je Suchbegriff eine Abfrage im Umkreis und, bei „bundesweite Remote-Stellen“, eine bundesweite Abfrage nach Stellen mit Homeoffice. Zwischen den Abfragen liegt eine kurze Pause. Details werden nur für Stellen geladen, die noch nicht gespeichert sind.
+- **Dubletten:** Gleiche Kennung oder gleiche Adresse der Anzeige gilt als dieselbe Stelle. Übernommene Stellen aus dem bisherigen Jobradar behalten Status, Notiz und Punkte.
+- **Zeitplan:** Die App prüft jede Minute, ob der tägliche Lauf fällig ist (Option `search_time`, Zeitzone von Home Assistant). Der Tag wird vor dem Start vermerkt: Ein fehlgeschlagener oder unterbrochener Lauf wird nicht minütlich wiederholt, der nächste Versuch ist am Folgetag. Ohne `/data/options.json` (lokale Entwicklung, Tests) gibt es keinen Zeitplan.
+- **Benachrichtigung:** Nach dem täglichen Lauf geht eine Meldung an den Dienst aus `notify_service`, wenn neue Stellen mindestens `notify_min_score` Punkte haben, oder wenn der Lauf fehlgeschlagen ist. Manuelle Läufe über das Dashboard melden nichts.
+- **Gleichzeitigkeit:** Es läuft nur ein Suchlauf; ein zweiter Start wird mit 409 abgelehnt.

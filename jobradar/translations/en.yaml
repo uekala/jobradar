@@ -1,0 +1,15 @@
+configuration:
+  search_time:
+    name: Time of the daily search
+    description: >-
+      From this time (HH:MM) Jobradar searches all active sources once a
+      day. Leave empty to search manually only.
+  notify_service:
+    name: Notification service
+    description: >-
+      Service that reports new vacancies, for example
+      notify.mobile_app_my_phone or persistent_notification.
+      Leave empty for no notification.
+  notify_min_score:
+    name: Notify from score
+    description: New vacancies are only reported from this score.
