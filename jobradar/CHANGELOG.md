@@ -1,5 +1,10 @@
 # Änderungen der Jobradar-App
 
+## 0.5.1
+
+- **Korrektur:** Die Seitenleiste des Dashboards war breiter als vorgesehen und lief über den rechten Rand; auf dem Handy war die Seite seitlich verschiebbar und die Punkte der Stellen abgeschnitten. Kopfzeilen mit mehreren Knöpfen brechen jetzt um.
+- Der letzte Suchlauf zeigt seinen Status auf Deutsch („Erfolgreich“ statt „success“).
+
 ## 0.5.0
 
 - **Arbeitsagentur als Quelle.** Jobradar sucht jetzt direkt in der Jobbörse der Bundesagentur für Arbeit: im Umkreis und, wenn im Suchprofil gewählt, bundesweit nach Stellen mit Homeoffice. Gehalt, Homeoffice und die Beschreibung kommen aus der Anzeige. Einrichten über „Arbeitsagentur hinzufügen“ im Dashboard.
