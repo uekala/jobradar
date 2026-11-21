@@ -2,6 +2,13 @@
 
 Dieses private Repository bündelt die bisherigen Jobradar-Bestandteile und hält die bestehenden Betriebsarten während der Konsolidierung getrennt.
 
+<p>
+  <img src="docs/dashboard.png" alt="Dashboard des Jobradar-Dienstes mit Kennzahlen, Stellenliste mit Match-Punkten, Statusübersicht und letztem Suchlauf" width="640">
+  <img src="docs/dashboard-handy.png" alt="Dasselbe Dashboard auf dem Handy" width="180">
+</p>
+
+<sub>Dashboard des eigenständigen Dienstes, mit erfundenen Beispielstellen.</sub>
+
 ## Bestandteile
 
 - **Home-Assistant-Integration** unter `custom_components/jobradar/` (bisheriges HACS-/Custom-Component-Projekt).
