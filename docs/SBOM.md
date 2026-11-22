@@ -1,30 +1,30 @@
-# Jobradar SBOM inventory
+# SBOM-Inventar von Jobradar
 
-The `Python SBOM` workflow resolves dependencies in clean CI virtual environments and emits CycloneDX JSON files plus the exact `pip freeze` input used to create each file.
+Der Workflow `Python SBOM` löst die Abhängigkeiten in frischen virtuellen Umgebungen der CI auf und erzeugt CycloneDX-JSON-Dateien sowie genau die `pip freeze`-Liste, aus der jede Datei entstanden ist.
 
-## Included scopes
+## Enthaltene Bereiche
 
-- **runtime**: Python 3.12 packages installed from `jobradar/requirements.txt`.
-- **standalone-tests**: Python 3.12 packages installed from the runtime and development requirement files.
-- **ha-integration-tests**: Python 3.14 packages installed from the root `requirements_test.txt`. The Home Assistant test plugin is pinned to the matching reviewed release in that file.
+- **runtime**: Pakete für Python 3.12 aus `jobradar/requirements.txt`.
+- **standalone-tests**: Pakete für Python 3.12 aus den Anforderungsdateien für Laufzeit und Entwicklung.
+- **ha-integration-tests**: Pakete für Python 3.14 aus der `requirements_test.txt` im Wurzelverzeichnis. Das Test-Plugin für Home Assistant ist dort auf die passende, geprüfte Version festgelegt.
 
-The workflow runs for relevant pull requests and can also be started manually with `workflow_dispatch`. Its outputs are retained as GitHub Actions artifacts for 90 days.
+Der Workflow läuft bei relevanten Pull Requests und lässt sich mit `workflow_dispatch` auch von Hand starten. Seine Ergebnisse bleiben 90 Tage als Artefakte in GitHub Actions erhalten.
 
-## Scope limitations
+## Grenzen
 
-These are Python package SBOMs, not a complete SBOM for the Home Assistant add-on image. They do not yet inventory:
+Das sind SBOMs für Python-Pakete, keine vollständige SBOM für das Image der Home-Assistant-App. Noch nicht erfasst sind:
 
-- Debian packages and other operating-system contents in `python:3.12-slim-bookworm`.
-- The exact base-image digest used for a particular ARM64 add-on build.
-- Home Assistant host-provided components or services.
-- External APIs, feeds, remote fonts, or their data/service terms.
+- Debian-Pakete und andere Inhalte des Betriebssystems in `python:3.12-slim-bookworm`.
+- Der genaue Digest des Basis-Images für einen bestimmten ARM64-Build der App.
+- Komponenten oder Dienste, die der Home-Assistant-Host bereitstellt.
+- Externe Schnittstellen, Feeds, entfernt geladene Schriften und deren Daten- oder Nutzungsbedingungen.
 
-The SBOM generator is installed in the runner environment, outside the isolated target virtual environment, so it is not mixed into the application package inventory. The resolved package list is uploaded alongside each SBOM to make the input auditable.
+Der SBOM-Generator wird in der Umgebung des Runners installiert, außerhalb der abgeschotteten virtuellen Zielumgebung. So gerät er nicht ins Paketinventar der Anwendung. Die aufgelöste Paketliste wird zusammen mit jeder SBOM hochgeladen, damit die Grundlage nachprüfbar ist.
 
-## Reproducibility and review
+## Reproduzierbarkeit und Prüfung
 
-Dependency constraints in the runtime and standalone development manifests are ranges, not locks. The generated files therefore represent the versions resolved at that workflow run, not a guarantee that a future run will resolve identical versions. Preserve the artifact with the corresponding workflow run/commit when retaining an audit record.
+Die Versionsangaben in den Manifesten für Laufzeit und Entwicklung sind Bereiche, keine festen Stände. Die erzeugten Dateien zeigen deshalb die Versionen, die in genau diesem Workflow-Lauf aufgelöst wurden; ein späterer Lauf kann andere Versionen ergeben. Wer einen Prüfnachweis aufbewahren will, sichert das Artefakt zusammen mit dem zugehörigen Lauf und Commit.
 
-The Home Assistant integration test plugin is pinned separately because its releases track specific Home Assistant versions and may require a newer Python runtime. Update that pin together with the Python version after checking the plugin's published metadata and rerunning the integration tests.
+Das Test-Plugin für die Home-Assistant-Integration ist eigens festgelegt, weil seine Versionen bestimmten Home-Assistant-Versionen folgen und eine neuere Python-Version verlangen können. Diese Festlegung zusammen mit der Python-Version anheben, nachdem die veröffentlichten Metadaten des Plugins geprüft und die Integrationstests erneut gelaufen sind.
 
-Do not treat a successful SBOM generation as proof that all licenses or external-service terms have been legally approved. Review missing/ambiguous license metadata and separately assess the Docker base image and external data sources.
+Eine erfolgreich erzeugte SBOM ist kein Beleg, dass alle Lizenzen oder Bedingungen externer Dienste rechtlich freigegeben sind. Fehlende oder unklare Lizenzangaben prüfen und das Docker-Basis-Image sowie externe Datenquellen gesondert bewerten.
