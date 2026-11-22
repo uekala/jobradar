@@ -4,7 +4,7 @@
 
 Der eigenständige Jobradar auf Home Assistant Green wird die zentrale Anwendung. Er übernimmt die bewährten Funktionen des bisherigen Claude-Jobradars, läuft im Alltag aber ohne Claude und ohne andere KI. Die Oberfläche wird modernisiert und für Desktop sowie Smartphone optimiert.
 
-Claude bleibt optionaler Helfer für Analyse, Weiterentwicklung und Bewerbungsunterlagen. Es ist keine Laufzeitabhängigkeit.
+Claude bleibt optionaler Helfer für Analysen und Bewerbungsunterlagen. Es ist keine Laufzeitabhängigkeit.
 
 ## Leitprinzipien
 
