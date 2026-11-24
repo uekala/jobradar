@@ -67,7 +67,7 @@ def test_restore_goes_into_new_file_and_matches(tmp_path):
     with sqlite3.connect(restored) as db:
         titles = [row[0] for row in db.execute("SELECT title FROM jobs ORDER BY id")]
     assert titles == [f"Stelle {i}" for i in range(5)]
-    # The live database was not touched by the restore.
+    # Die laufende Datenbank wurde von der Wiederherstellung nicht berührt.
     with sqlite3.connect(db_file) as db:
         assert db.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == 0
 

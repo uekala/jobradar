@@ -1,4 +1,4 @@
-"""HTTP application entry point and API for the standalone Jobradar."""
+"""Einstiegspunkt der HTTP-Anwendung und API des eigenständigen Jobradar."""
 from __future__ import annotations
 
 import asyncio
@@ -40,8 +40,8 @@ def now_iso() -> str:
 
 _LOGGER = logging.getLogger("jobradar")
 if not _LOGGER.handlers:
-    # uvicorn only configures its own loggers; without this, INFO messages
-    # such as "Backup angelegt" would never reach the add-on log.
+    # uvicorn richtet nur seine eigenen Logger ein; ohne das kämen INFO-Meldungen
+    # wie "Backup angelegt" nie im Add-on-Log an.
     _handler = logging.StreamHandler()
     _handler.setFormatter(logging.Formatter("%(levelname)s:     %(message)s"))
     _LOGGER.addHandler(_handler)
@@ -52,7 +52,7 @@ DEFAULT_BACKUP_CHECK_SECONDS = 3600.0
 
 
 def backup_check_interval() -> float:
-    """Seconds between checks whether the daily backup is due."""
+    """Sekunden zwischen den Prüfungen, ob das tägliche Backup fällig ist."""
     raw = os.environ.get("JOBRADAR_BACKUP_CHECK_SECONDS")
     if not raw:
         return DEFAULT_BACKUP_CHECK_SECONDS
@@ -71,22 +71,23 @@ def backup_check_interval() -> float:
 
 
 def run_scheduled_backup() -> None:
-    """Create the daily backup if it is due. Never raises."""
+    """Legt das tägliche Backup an, wenn es fällig ist. Wirft nie."""
     try:
         created = ensure_recent_backup()
         if created is not None:
             _LOGGER.info("Backup angelegt: %s", created.name)
-    except Exception as err:  # noqa: BLE001 - a failed backup must not stop the service
-        # The service keeps running; the next check tries again.
+    except Exception as err:  # noqa: BLE001 - ein gescheitertes Backup hält den Dienst nicht an
+        # Der Dienst läuft weiter; die nächste Prüfung versucht es erneut.
         _LOGGER.error("Tägliches Backup fehlgeschlagen: %s", err)
 
 
 async def backup_loop(stop: asyncio.Event, interval: float) -> None:
-    """Check every ``interval`` seconds whether the daily backup is due.
+    """Prüft alle ``interval`` Sekunden, ob das tägliche Backup fällig ist.
 
-    The add-on usually runs for weeks without a restart, so a check only at
-    start would not give daily backups. A running backup is never cancelled:
-    shutdown sets ``stop`` and waits until the current copy is finished.
+    Das Add-on läuft meist wochenlang ohne Neustart, eine Prüfung nur beim
+    Start ergäbe also keine täglichen Backups. Ein laufendes Backup wird nie
+    abgebrochen: Beim Herunterfahren wird ``stop`` gesetzt und gewartet, bis
+    die aktuelle Kopie fertig ist.
     """
     while True:
         try:
@@ -102,7 +103,7 @@ async def lifespan(app: FastAPI):
     initialize_database()
     for leftover in remove_stale_partials():
         _LOGGER.warning("Unvollständiges Backup entfernt: %s", leftover.name)
-    # First check before the app serves requests, as before.
+    # Erste Prüfung, bevor die App Anfragen bedient, wie bisher.
     await asyncio.to_thread(run_scheduled_backup)
     stop = asyncio.Event()
     task = asyncio.create_task(backup_loop(stop, backup_check_interval()))
@@ -118,9 +119,9 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        # Home Assistant stops the app for a cold backup (SIGTERM). Finish a
-        # running backup copy, then exit; no database connection stays open
-        # because every request uses its own short-lived connection.
+        # Home Assistant stoppt die App für ein Cold-Backup (SIGTERM). Eine
+        # laufende Backup-Kopie wird fertig, dann endet der Dienst; offen bleibt
+        # keine Datenbankverbindung, weil jede Anfrage ihre eigene kurze nutzt.
         stop.set()
         await task
         if search_task is not None:
@@ -218,7 +219,7 @@ def metadata() -> dict[str, str]:
 
 @app.get("/api/schedule")
 def schedule() -> dict[str, Any]:
-    """Daily search schedule as configured in the app options."""
+    """Täglicher Suchplan laut den App-Optionen."""
     options = getattr(app.state, "options", None) or load_options()
     return {
         "search_time": options["search_time"] or None,
@@ -314,7 +315,7 @@ def get_job(job_id: str) -> dict[str, Any]:
     job = dict(row)
     imported = imported_details(job.get("import_json"))
     if job.get("imported_score") is not None:
-        # Imported jobs keep the assessment of the previous Jobradar; it is not recalculated here.
+        # Importierte Stellen behalten die Bewertung des bisherigen Jobradar, ohne Neuberechnung.
         breakdown = [{
             "label": "Übernommene Bewertung",
             "points": int(job["imported_score"]),
@@ -342,8 +343,8 @@ def get_job(job_id: str) -> dict[str, Any]:
     evaluation = evaluate_vacancy_detailed(job, profile, rules)
     breakdown = evaluation["breakdown"]
 
-    # Stored base scores may come from an earlier profile/rule version.
-    # Reconcile the current explanation with that persisted value transparently.
+    # Gespeicherte Basiswerte können aus einer früheren Profil- oder Regelversion stammen.
+    # Die aktuelle Erklärung wird nachvollziehbar mit diesem gespeicherten Wert abgeglichen.
     stored_base_score = job.get("base_score")
     current_score = job.get("score")
     calculated_base_score = evaluation["score"]
@@ -380,7 +381,7 @@ def import_export(
     dry_run: bool = Query(default=True),
     overwrite_profile: bool = Query(default=False),
 ) -> Any:
-    """Check a Jobradar export (default) or apply it when ``dry_run=false``."""
+    """Prüft einen Jobradar-Export (Standard) oder übernimmt ihn bei ``dry_run=false``."""
     with connect() as db:
         report = run_import(db, payload, dry_run=dry_run, overwrite_profile=overwrite_profile, now=now_iso())
     if not dry_run and report["errors"]:
@@ -439,7 +440,7 @@ def _learning_terms(text: str | None) -> set[str]:
 
 
 def _apply_learning_scores(db: Any) -> None:
-    """Recalculate scores from immutable base scores and explicit user feedback."""
+    """Berechnet die Punkte neu aus unveränderlichen Basiswerten und ausdrücklichem Feedback."""
     examples = db.execute(
         "SELECT title, description, status FROM jobs WHERE status IN ('gemerkt','verworfen')"
     ).fetchall()
@@ -656,7 +657,7 @@ def delete_source(source_id: str) -> None:
 
 
 def _source_settings(source: Any, profile: dict[str, Any]) -> dict[str, Any]:
-    """Search terms and options of one source, with the profile as fallback."""
+    """Suchbegriffe und Optionen einer Quelle, ersatzweise aus dem Profil."""
     queries = json.loads(source["query_json"]) or profile.get("roles", [])
     config = json.loads(source["config_json"])
     radius = config.get("radius_km", profile.get("radius_km", 50))
@@ -694,7 +695,7 @@ def _search_arbeitsagentur(source: Any, profile: dict[str, Any], known_ids: set[
     )
 
 
-# Sources with a working adapter. Other enabled sources are reported as skipped.
+# Quellen mit funktionierendem Adapter. Andere aktivierte Quellen gelten als übersprungen.
 SOURCE_ADAPTERS: dict[str, Any] = {
     "karriere-nrw": _search_karriere_nrw,
     "arbeitsagentur": _search_arbeitsagentur,
@@ -704,14 +705,14 @@ _search_lock = threading.Lock()
 
 
 class SearchAlreadyRunning(RuntimeError):
-    """A search run is in progress; a second one would duplicate requests."""
+    """Ein Suchlauf ist im Gang; ein zweiter würde Anfragen doppelt stellen."""
 
 
 def perform_search_run(trigger: str = "manual") -> dict[str, Any]:
-    """Run all supported, enabled sources once and persist the vacancies.
+    """Durchsucht alle unterstützten, aktivierten Quellen einmal und speichert die Stellen.
 
-    Used by the dashboard button and by the daily schedule. Only one run at a
-    time: a second call raises ``SearchAlreadyRunning``.
+    Genutzt vom Knopf in der Übersicht und vom täglichen Zeitplan. Es läuft
+    immer nur ein Lauf: Ein zweiter Aufruf wirft ``SearchAlreadyRunning``.
     """
     if not _search_lock.acquire(blocking=False):
         raise SearchAlreadyRunning("Es läuft bereits ein Suchlauf")
@@ -769,8 +770,8 @@ def _search_run(trigger: str) -> dict[str, Any]:
                     ).fetchone()
                     duplicate = None
                     if exists is None and vacancy.get("url"):
-                        # The same advertisement under another id, e.g. taken over
-                        # from the previous Jobradar: keep that entry, do not add a second.
+                        # Dieselbe Anzeige unter anderer ID, z. B. aus dem bisherigen
+                        # Jobradar übernommen: diesen Eintrag behalten, keinen zweiten anlegen.
                         duplicate = db.execute(
                             "SELECT id FROM jobs WHERE url = ? LIMIT 1", (vacancy["url"],)
                         ).fetchone()
@@ -805,8 +806,8 @@ def _search_run(trigger: str) -> dict[str, Any]:
                         )
                     else:
                         found_total += 1
-                        # A hit without details (already known, so not requested again)
-                        # must not wipe the stored description or lower the score.
+                        # Ein Treffer ohne Details (schon bekannt, daher nicht erneut abgefragt)
+                        # darf die gespeicherte Beschreibung nicht löschen, die Punkte nicht senken.
                         if vacancy.get("description"):
                             db.execute(
                                 """UPDATE jobs SET title=?,company=?,location=?,url=?,source=?,description=?,
@@ -823,7 +824,7 @@ def _search_run(trigger: str) -> dict[str, Any]:
                             db.execute(
                                 "UPDATE jobs SET last_seen_at=? WHERE id=?", (now, vacancy["id"])
                             )
-        except Exception as exc:  # noqa: BLE001 - one failing source must not stop the others
+        except Exception as exc:  # noqa: BLE001 - eine Quelle mit Fehler hält die anderen nicht auf
             errors.append(f"{source['name']}: {exc}")
 
     with connect() as db:
@@ -861,7 +862,7 @@ def _search_run(trigger: str) -> dict[str, Any]:
 
 @app.post("/api/search/run", status_code=200)
 def run_enabled_search() -> dict[str, Any]:
-    """Run the supported public source adapters and persist normalized vacancies."""
+    """Fragt die unterstützten öffentlichen Quellen ab, speichert die vereinheitlichten Stellen."""
     try:
         return perform_search_run("manual")
     except SearchAlreadyRunning as err:

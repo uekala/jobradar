@@ -1,4 +1,4 @@
-"""SQLite persistence for the standalone Jobradar service."""
+"""SQLite-Speicher für den eigenständigen Jobradar-Dienst."""
 from __future__ import annotations
 
 import os
@@ -24,7 +24,7 @@ def connect(db_path: str | None = None) -> sqlite3.Connection:
 
 
 def _existing_schema(path: str) -> tuple[int, set[str]] | None:
-    """Schema version and jobs columns of an existing database, None if there is none."""
+    """Schemaversion und Spalten von jobs einer vorhandenen Datenbank, None, wenn es keine gibt."""
     file = Path(path)
     if not file.is_file() or file.stat().st_size == 0:
         return None
@@ -49,17 +49,17 @@ def _existing_schema(path: str) -> tuple[int, set[str]] | None:
 
 
 def initialize_database(db_path: str | None = None) -> None:
-    """Create the initial schema. Safe to call on every application start.
+    """Legt das Anfangsschema an. Kann bei jedem Start der Anwendung aufgerufen werden.
 
-    Before an existing database is migrated, a verified backup is written to
-    the backups folder. If that backup fails, the migration does not run.
+    Bevor eine vorhandene Datenbank migriert wird, wird ein geprüftes Backup in
+    den Backup-Ordner geschrieben. Scheitert dieses Backup, läuft die Migration nicht.
     """
     path = db_path or database_path()
     existing = _existing_schema(path)
     if existing is not None:
         version, columns = existing
         if version < SCHEMA_VERSION or (columns and "base_score" not in columns):
-            from .backup import create_backup  # local import: backup imports this module
+            from .backup import create_backup  # lokaler Import: backup importiert dieses Modul
 
             create_backup(path, reason=f"pre-migration-v{version}-to-v{SCHEMA_VERSION}")
     with connect(path) as db:
@@ -180,7 +180,7 @@ def initialize_database(db_path: str | None = None) -> None:
 
 
 def _add_missing_columns(db: sqlite3.Connection, table: str, columns: dict[str, str]) -> None:
-    """Add nullable columns that older databases do not have yet."""
+    """Ergänzt Spalten (NULL erlaubt), die ältere Datenbanken noch nicht haben."""
     existing = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
     for name, column_type in columns.items():
         if name not in existing:

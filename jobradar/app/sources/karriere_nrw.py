@@ -1,7 +1,7 @@
-"""Public Open-Data adapter for Karriere.NRW.
+"""Öffentlicher Open-Data-Adapter für Karriere.NRW.
 
-The API is documented for third-party integration. Keep requests conservative:
-one search request and one detail request per returned vacancy.
+Die API ist für die Einbindung durch Dritte dokumentiert. Anfragen zurückhaltend
+halten: eine Suchanfrage und eine Detailanfrage je gelieferter Stelle.
 """
 from __future__ import annotations
 
@@ -52,13 +52,13 @@ def search_vacancies(
     radius_km: int | None = None,
     limit: int = 50,
 ) -> list[dict]:
-    """Search public NRW vacancies and fetch their detail records."""
+    """Sucht öffentliche NRW-Stellen und lädt ihre Detaildatensätze."""
     normalized_terms = [term.strip() for term in terms if term and term.strip()]
     if not normalized_terms:
         raise ValueError("At least one search term is required")
 
-    # The public API accepts one free-text value. Search terms are queried
-    # individually to avoid silently losing profile keywords.
+    # Die öffentliche API nimmt einen Freitext-Wert an. Die Suchbegriffe werden
+    # einzeln abgefragt, damit keine Profil-Stichwörter unbemerkt verloren gehen.
     found: dict[str, dict] = {}
     for term in normalized_terms:
         params: dict[str, str] = {"text": term, "taetigkeitsfeld": "3"}
@@ -106,7 +106,7 @@ def search_vacancies(
 
 
 def _radius_code(radius_km: int) -> int:
-    """Map a requested radius to the API's supported distance bands."""
+    """Ordnet einen gewünschten Umkreis den Entfernungsstufen der API zu."""
     bands = [(5, 0), (10, 1), (15, 2), (20, 3), (50, 4), (100, 5), (150, 6), (200, 7)]
     for maximum, code in bands:
         if radius_km <= maximum:

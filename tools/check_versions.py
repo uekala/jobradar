@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the legacy Home Assistant integration version metadata."""
+"""Prüft die Versionsangaben der bisherigen Home-Assistant-Integration."""
 
 from __future__ import annotations
 
@@ -18,8 +18,8 @@ version = manifest.get("version")
 if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version):
     raise SystemExit(f"Invalid Home Assistant manifest version: {version!r}")
 
-# The repository root CHANGELOG.md belongs to the standalone service. Keep the
-# integration's release history and version check scoped to its own directory.
+# Die CHANGELOG.md im Wurzelverzeichnis gehört zum eigenständigen Dienst. Release-
+# Verlauf und Versionsprüfung der Integration bleiben auf ihr eigenes Verzeichnis beschränkt.
 changelog_path = integration_dir / "CHANGELOG.md"
 if changelog_path.exists():
     headings = re.findall(

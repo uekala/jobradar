@@ -1,13 +1,14 @@
-"""Consistent SQLite backups for the standalone Jobradar.
+"""Konsistente SQLite-Backups für den eigenständigen Jobradar.
 
-Rules:
-- Backups use SQLite's online backup API, so they are consistent even while
-  the service is writing.
-- Every backup is checked with ``PRAGMA integrity_check`` before it counts.
-- Nothing here ever writes to the live database. A restore always goes into a
-  new file; switching to it is a manual step (see docs/architecture.md).
-- Only routine backups (daily, manual) are pruned. Backups written before a
-  schema migration are kept until someone deletes them on purpose.
+Regeln:
+- Backups nutzen die Online-Backup-API von SQLite und sind deshalb auch dann
+  konsistent, wenn der Dienst gerade schreibt.
+- Jedes Backup wird mit ``PRAGMA integrity_check`` geprüft, bevor es zählt.
+- Hier wird nie in die laufende Datenbank geschrieben. Eine Wiederherstellung
+  geht immer in eine neue Datei; der Wechsel dorthin ist ein manueller Schritt
+  (siehe docs/architecture.md).
+- Nur Routine-Backups (täglich, manuell) werden ausgedünnt. Backups vor einer
+  Schema-Migration bleiben, bis jemand sie bewusst löscht.
 """
 from __future__ import annotations
 
@@ -28,7 +29,7 @@ ROUTINE_REASONS = frozenset({"daily", "manual"})
 
 
 class BackupError(RuntimeError):
-    """A backup could not be created or failed verification."""
+    """Ein Backup ließ sich nicht anlegen oder hat die Prüfung nicht bestanden."""
 
 
 def backup_dir(db_path: str | None = None) -> Path:
@@ -54,7 +55,7 @@ def _target_path(directory: Path, reason: str) -> Path:
 
 
 def verify_backup(path: str | Path) -> dict:
-    """Integrity check plus row counts; raises BackupError if the file is damaged."""
+    """Integritätsprüfung plus Zeilenzahlen; wirft BackupError, wenn die Datei beschädigt ist."""
     path = Path(path)
     if not path.is_file():
         raise BackupError(f"Backup {path} existiert nicht")
@@ -95,7 +96,7 @@ def verify_backup(path: str | Path) -> dict:
 def create_backup(
     db_path: str | None = None, directory: Path | None = None, reason: str = "manual"
 ) -> Path:
-    """Copy the live database into a new, verified backup file."""
+    """Kopiert die laufende Datenbank in eine neue, geprüfte Backup-Datei."""
     source_path = Path(db_path or database_path())
     if not source_path.is_file():
         raise BackupError(f"Datenbank {source_path} existiert nicht")
@@ -135,10 +136,10 @@ def backup_reason(path: Path) -> str | None:
 
 
 def prune_backups(directory: Path | None = None, keep: int = DEFAULT_KEEP) -> list[Path]:
-    """Delete the oldest routine backups beyond ``keep``.
+    """Löscht die ältesten Routine-Backups über ``keep`` hinaus.
 
-    Only daily and manual backups count and get deleted; pre-migration
-    backups and any other file in the folder are left alone.
+    Nur tägliche und manuelle Backups zählen und werden gelöscht; Backups vor
+    einer Migration und alle anderen Dateien im Ordner bleiben unberührt.
     """
     if keep < 1:
         raise ValueError("keep muss mindestens 1 sein")
@@ -151,11 +152,11 @@ def prune_backups(directory: Path | None = None, keep: int = DEFAULT_KEEP) -> li
 
 
 def remove_stale_partials(directory: Path | None = None) -> list[Path]:
-    """Delete half-written backup files left behind by an interrupted backup.
+    """Löscht halb geschriebene Backup-Dateien eines abgebrochenen Backups.
 
-    A ``.db.partial`` file never counts as a backup. One can only remain if
-    the process was killed while copying, e.g. when Home Assistant stops the
-    app for a cold backup and the stop timeout runs out.
+    Eine ``.db.partial``-Datei zählt nie als Backup. Sie kann nur übrig bleiben,
+    wenn der Prozess beim Kopieren abgebrochen wurde, z. B. wenn Home Assistant
+    die App für ein Cold-Backup stoppt und das Stopp-Timeout abläuft.
     """
     directory = directory or backup_dir()
     if not directory.is_dir():
@@ -179,7 +180,7 @@ def latest_backup_age(directory: Path | None = None) -> timedelta | None:
 def ensure_recent_backup(
     db_path: str | None = None, max_age: timedelta = timedelta(hours=24), keep: int = DEFAULT_KEEP
 ) -> Path | None:
-    """Create a scheduled backup if the newest one is older than ``max_age``."""
+    """Legt ein planmäßiges Backup an, wenn das neueste älter als ``max_age`` ist."""
     source_path = Path(db_path or database_path())
     if not source_path.is_file():
         return None
@@ -193,7 +194,7 @@ def ensure_recent_backup(
 
 
 def restore_to(backup: str | Path, target: str | Path) -> dict:
-    """Restore a backup into a NEW file. Refuses to overwrite anything."""
+    """Stellt ein Backup in eine NEUE Datei wieder her. Überschreibt nie etwas."""
     backup = Path(backup)
     target = Path(target)
     if target.exists():

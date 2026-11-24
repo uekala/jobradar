@@ -1,4 +1,4 @@
-"""Search run across several sources, daily schedule and notifications."""
+"""Suchlauf über mehrere Quellen, täglicher Zeitplan und Benachrichtigungen."""
 import json
 from datetime import datetime, timezone
 

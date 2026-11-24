@@ -1,4 +1,4 @@
-"""Release metadata of the add-on must agree, and cold backups stay on from 0.3.0."""
+"""Release-Angaben des Add-ons müssen übereinstimmen, Cold-Backups bleiben ab 0.3.0 an."""
 from __future__ import annotations
 
 import re

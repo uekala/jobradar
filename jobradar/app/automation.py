@@ -1,8 +1,8 @@
-"""Daily search schedule and Home Assistant notifications.
+"""Täglicher Suchplan und Benachrichtigungen über Home Assistant.
 
-The app runs as a Home Assistant app (add-on). Its options arrive in
-``/data/options.json``; without that file (local development, tests) nothing
-is scheduled and nothing is sent.
+Die App läuft als Home-Assistant-App (Add-on). Ihre Optionen stehen in
+``/data/options.json``; ohne diese Datei (lokale Entwicklung, Tests) wird
+nichts geplant und nichts gesendet.
 """
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ _SERVICE = re.compile(r"^[a-z0-9_]+$")
 
 
 def load_options(path: str | None = None) -> dict[str, Any]:
-    """Read the app options. A missing file switches schedule and push off."""
+    """Liest die App-Optionen. Fehlt die Datei, sind Zeitplan und Push aus."""
     file = Path(path or os.environ.get("JOBRADAR_OPTIONS_PATH", DEFAULT_OPTIONS_PATH))
     options: dict[str, Any] = {"search_time": "", "notify_service": "", "notify_min_score": 70}
     try:
@@ -67,7 +67,7 @@ def load_options(path: str | None = None) -> dict[str, Any]:
 
 
 def local_now() -> datetime:
-    """Current time in the time zone Home Assistant passes to the app (``TZ``)."""
+    """Aktuelle Zeit in der Zeitzone, die Home Assistant der App übergibt (``TZ``)."""
     name = os.environ.get("TZ", "").strip()
     if name:
         try:
@@ -78,10 +78,10 @@ def local_now() -> datetime:
 
 
 def search_due(now: datetime, search_time: str, last_date: str | None) -> bool:
-    """True once per day from ``search_time`` on.
+    """Einmal pro Tag ab ``search_time`` wahr.
 
-    A run missed because the app was stopped is caught up after the start,
-    as long as it is still the same day.
+    Ein Lauf, der verpasst wurde, weil die App gestoppt war, wird nach dem
+    Start nachgeholt, solange noch derselbe Tag ist.
     """
     match = _TIME.fullmatch(search_time or "")
     if not match:
@@ -109,7 +109,7 @@ def mark_scheduled(day: str) -> None:
 
 
 def build_notification(result: dict[str, Any], min_score: int) -> tuple[str, str] | None:
-    """Title and text for a finished run, or None if there is nothing to report."""
+    """Titel und Text zu einem beendeten Lauf, oder None, wenn es nichts zu melden gibt."""
     run = result.get("run") or {}
     if run.get("status") == "failed":
         detail = "; ".join(result.get("errors") or []) or "Keine Quelle lieferte Stellen."
@@ -150,7 +150,7 @@ def _supervisor(method: str, path: str, payload: dict[str, Any] | None = None) -
 
 
 def panel_url() -> str | None:
-    """Address of the Jobradar panel inside Home Assistant, for the tap on the push."""
+    """Adresse des Jobradar-Panels in Home Assistant, für das Antippen der Push-Nachricht."""
     try:
         info = _supervisor("GET", "/addons/self/info")
     except RuntimeError:
@@ -161,7 +161,7 @@ def panel_url() -> str | None:
 
 
 def send_notification(service: str, title: str, message: str) -> None:
-    """Send through a Home Assistant notify service, e.g. ``mobile_app_pixel``."""
+    """Sendet über einen Notify-Dienst von Home Assistant, z. B. ``mobile_app_pixel``."""
     if service == "persistent_notification":
         _supervisor(
             "POST",
@@ -172,13 +172,13 @@ def send_notification(service: str, title: str, message: str) -> None:
     payload: dict[str, Any] = {"title": title, "message": message}
     url = panel_url()
     if url:
-        # "url" opens the panel on iOS, "clickAction" on Android.
+        # "url" öffnet das Panel unter iOS, "clickAction" unter Android.
         payload["data"] = {"url": url, "clickAction": url, "tag": "jobradar"}
     _supervisor("POST", f"/core/api/services/notify/{service}", payload)
 
 
 def notify_result(result: dict[str, Any], options: dict[str, Any]) -> bool:
-    """Push the outcome of a run if a service is configured. Never raises."""
+    """Meldet das Ergebnis eines Laufs per Push, wenn ein Dienst eingerichtet ist. Wirft nie."""
     service = options.get("notify_service")
     if not service:
         return False
@@ -187,7 +187,7 @@ def notify_result(result: dict[str, Any], options: dict[str, Any]) -> bool:
         return False
     try:
         send_notification(service, *notification)
-    except Exception as err:  # noqa: BLE001 - a failed push must not fail the run
+    except Exception as err:  # noqa: BLE001 - ein gescheiterter Push beendet den Lauf nicht
         _LOGGER.error("Benachrichtigung fehlgeschlagen: %s", err)
         return False
     return True
@@ -198,16 +198,16 @@ def run_scheduled_search(
     options: dict[str, Any],
     now: datetime | None = None,
 ) -> dict[str, Any] | None:
-    """Run the daily search if it is due. Never raises."""
+    """Startet die tägliche Suche, wenn sie fällig ist. Wirft nie."""
     now = now or local_now()
     try:
         if not search_due(now, options.get("search_time", ""), last_scheduled_date()):
             return None
-        # Marked before the run: a run that fails or is interrupted is not
-        # repeated every minute, the next attempt is tomorrow.
+        # Vor dem Lauf markiert: Ein Lauf, der scheitert oder abbricht, wird
+        # nicht jede Minute wiederholt, der nächste Versuch ist morgen.
         mark_scheduled(now.date().isoformat())
         result = run("schedule")
-    except Exception as err:  # noqa: BLE001 - the service keeps running
+    except Exception as err:  # noqa: BLE001 - der Dienst läuft weiter
         _LOGGER.error("Täglicher Suchlauf fehlgeschlagen: %s", err)
         return None
     summary = result.get("run") or {}
@@ -225,7 +225,7 @@ async def search_loop(
     options: dict[str, Any],
     interval: float = CHECK_SECONDS,
 ) -> None:
-    """Check every minute whether the daily search is due."""
+    """Prüft jede Minute, ob die tägliche Suche fällig ist."""
     while True:
         try:
             await asyncio.wait_for(stop.wait(), timeout=interval)

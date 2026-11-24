@@ -1,11 +1,11 @@
-"""Adapter for the public job search of the Bundesagentur für Arbeit.
+"""Adapter für die öffentliche Jobsuche der Bundesagentur für Arbeit.
 
-The interface is public and free to use; community documentation:
+Die Schnittstelle ist öffentlich und frei nutzbar; Doku aus der Community:
 https://jobsuche.api.bund.dev/
 
-Requests stay conservative: one search request per term (plus one for the
-nationwide home-office search), a short pause between requests and a capped
-number of detail requests per run.
+Die Anfragen bleiben zurückhaltend: eine Suchanfrage je Begriff (plus eine für
+die bundesweite Homeoffice-Suche), eine kurze Pause zwischen den Anfragen und
+eine begrenzte Zahl an Detailanfragen je Lauf.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from urllib.request import Request, urlopen
 
 BASE_URL = "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service"
 DETAIL_PAGE = "https://www.arbeitsagentur.de/jobsuche/jobdetail/"
-# Several known paths: the Bundesagentur has changed them over the years.
+# Mehrere bekannte Pfade: Die Bundesagentur hat sie über die Jahre geändert.
 SEARCH_PATHS = ("/pc/v6/jobs", "/pc/v4/app/jobs", "/pc/v4/jobs")
 DETAIL_PATHS = ("/pc/v4/jobdetails/{code}", "/pc/v3/jobdetails/{code}")
 HEADERS = {
@@ -31,7 +31,7 @@ HEADERS = {
 PAUSE_SECONDS = 0.3
 DESCRIPTION_LIMIT = 6000
 
-# v4 calls the reference number refnr, v6 referenznummer.
+# v4 nennt die Referenznummer refnr, v6 referenznummer.
 ID_KEYS = ("refnr", "referenznummer", "referenzNummer")
 TITLE_KEYS = ("titel", "stellenangebotsTitel", "stellentitel", "beruf", "hauptberuf")
 DATE_KEYS = (
@@ -43,14 +43,14 @@ DATE_KEYS = (
 # v4 lists hits under stellenangebote, v6 under ergebnisliste.
 LIST_KEYS = ("stellenangebote", "ergebnisliste", "ergebnisse", "jobs", "content", "items")
 
-# Plausible range for a gross annual salary; "festgehalt": 1 occurs as a placeholder.
+# Plausibler Bereich für ein Bruttojahresgehalt; "festgehalt": 1 kommt als Platzhalter vor.
 MIN_ANNUAL = 12_000
 MAX_ANNUAL = 500_000
 HOURS_PER_YEAR = 2080
 
 
 class ArbeitsagenturError(RuntimeError):
-    """The job board was unreachable or answered unexpectedly."""
+    """Die Stellenbörse war nicht erreichbar oder hat unerwartet geantwortet."""
 
 
 class HttpStatusError(ArbeitsagenturError):
@@ -91,16 +91,16 @@ def _first(item: dict[str, Any], *keys: str) -> str:
 
 
 def _name(value: Any) -> str:
-    """The employer is a text or an object, depending on the version."""
+    """Der Arbeitgeber ist je nach Version ein Text oder ein Objekt."""
     if isinstance(value, dict):
         return _first(value, "name", "bezeichnung", "arbeitgeber")
     return _text(value)
 
 
 def _place(item: dict[str, Any]) -> dict[str, Any]:
-    """Place of work.
+    """Arbeitsort.
 
-    v4: arbeitsort{ort, plz, ...} or arbeitsorte[...];
+    v4: arbeitsort{ort, plz, ...} oder arbeitsorte[...];
     v6: stellenlokationen[{adresse{ort, plz, ...}}].
     """
     place: Any = item.get("arbeitsort")
@@ -119,7 +119,7 @@ def _place(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def _from(item: dict[str, Any], key: str) -> str:
-    """Date from a period object such as {"von": "2026-11-02"}."""
+    """Datum aus einem Zeitraum-Objekt wie {"von": "2026-11-02"}."""
     value = item.get(key)
     return _text(value.get("von")) if isinstance(value, dict) else _text(value)
 
@@ -144,14 +144,14 @@ def _annual(value: Any, kind: str) -> int | None:
     if "STUNDE" in kind:
         number *= HOURS_PER_YEAR
     elif "MONAT" in kind or number < 15_000:
-        # A monthly amount, even if it is marked as an annual salary by mistake.
+        # Ein Monatsbetrag, auch wenn er versehentlich als Jahresgehalt markiert ist.
         number *= 12
     annual = round(number)
     return annual if MIN_ANNUAL <= annual <= MAX_ANNUAL else None
 
 
 def pay_from_item(item: dict[str, Any]) -> tuple[int | None, int | None]:
-    """Gross annual salary (from, to) of a hit or a detail record."""
+    """Bruttojahresgehalt (von, bis) eines Treffers oder Detaildatensatzes."""
     kind = str(item.get("verguetungsangabe") or "").upper()
     if not kind or kind == "KEINE_ANGABEN":
         return None, None
@@ -167,7 +167,7 @@ def pay_from_item(item: dict[str, Any]) -> tuple[int | None, int | None]:
 
 
 def result_items(data: Any) -> list[dict[str, Any]]:
-    """List of hits of a response; without hits it is missing altogether."""
+    """Trefferliste einer Antwort; ohne Treffer fehlt sie ganz."""
     if not isinstance(data, dict):
         return []
     for key in LIST_KEYS:
@@ -190,7 +190,7 @@ def total_hits(data: Any) -> int:
 
 
 def parse_search_item(item: dict[str, Any], remote_search: bool) -> dict[str, Any] | None:
-    """Normalize one hit into the vacancy format of the app."""
+    """Bringt einen Treffer in das Stellenformat der App."""
     refnr = _first(item, *ID_KEYS)
     if not refnr:
         return None
@@ -198,7 +198,7 @@ def parse_search_item(item: dict[str, Any], remote_search: bool) -> dict[str, An
     published = _first(item, *DATE_KEYS) or _from(item, "veroeffentlichungszeitraum")
     salary_min, salary_max = pay_from_item(item)
     remote = remote_search
-    # v6 says for each vacancy whether home office is possible; v4 only via the filter.
+    # v6 gibt je Stelle an, ob Homeoffice möglich ist; v4 nur über den Filter.
     home_office = item.get("homeofficemoeglich")
     if isinstance(home_office, bool):
         remote = home_office
@@ -225,12 +225,12 @@ def parse_search_item(item: dict[str, Any], remote_search: bool) -> dict[str, An
 
 
 def apply_details(vacancy: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
-    """Add description, salary and working time from the detail record."""
+    """Ergänzt Beschreibung, Gehalt und Arbeitszeit aus dem Detaildatensatz."""
     description = _text(data.get("stellenangebotsBeschreibung")) or _text(
         data.get("stellenbeschreibung")
     )
     parts = [description[:DESCRIPTION_LIMIT]]
-    # Pay text and fixed-term notes carry pay grades such as "EG 11 TVöD".
+    # Vergütungstext und Befristungshinweise nennen Entgeltgruppen wie "EG 11 TVöD".
     for label, key in (("Vergütung", "verguetung"), ("Befristung", "befristung")):
         value = _text(data.get(key))
         if value:
@@ -256,7 +256,7 @@ def apply_details(vacancy: dict[str, Any], data: dict[str, Any]) -> dict[str, An
 
 
 def _too_old(published: str | None, days: int, today: date) -> bool:
-    """The v6 search does not reliably honour veroeffentlichtseit, so filter here too."""
+    """Die v6-Suche beachtet veroeffentlichtseit nicht zuverlässig, daher auch hier filtern."""
     if not published:
         return False
     try:
@@ -274,7 +274,7 @@ class _Client:
         self._detail_misses = 0
 
     def search(self, params: dict[str, Any], remote: bool) -> list[dict[str, Any]]:
-        # The path that worked last comes first, the others are fallbacks.
+        # Der zuletzt erfolgreiche Pfad kommt zuerst, die anderen sind Ausweichwege.
         paths = list(SEARCH_PATHS)
         if self._search_path in paths:
             paths.remove(self._search_path)
@@ -292,12 +292,12 @@ class _Client:
             items = result_items(data)
             vacancies = [v for v in (parse_search_item(item, remote) for item in items) if v]
             if (items and not vacancies) or (not items and total_hits(data) > 0):
-                # Format changed: try another route instead of silently finding nothing.
+                # Format geändert: anderen Weg versuchen, statt still nichts zu finden.
                 last_error = ArbeitsagenturError(f"Unbekanntes Trefferformat unter {path}")
                 continue
             self._search_path = path
             if remote:
-                # Nationwide home-office search: vacancies without home office do not belong here.
+                # Bundesweite Homeoffice-Suche: Stellen ohne Homeoffice gehören nicht hierher.
                 vacancies = [v for v in vacancies if v["remote_type"]]
             return vacancies
         self._search_path = None
@@ -321,7 +321,7 @@ class _Client:
                 self._detail_misses = 0
                 apply_details(vacancy, data)
                 return True
-        # A single gap can be a vacancy that was just deleted, several in a row cannot.
+        # Eine einzelne Lücke kann eine gerade gelöschte Stelle sein, mehrere hintereinander nicht.
         self._detail_misses += 1
         if self._detail_misses >= 3:
             self._details_available = False
@@ -341,11 +341,11 @@ def search_vacancies(
     known_ids: set[str] | None = None,
     today: date | None = None,
 ) -> list[dict[str, Any]]:
-    """Search vacancies for all terms and load details for unknown ones.
+    """Sucht Stellen für alle Begriffe und lädt Details zu unbekannten.
 
-    ``known_ids`` are vacancy ids that are already stored; their details are
-    not requested again. A failing single search does not stop the others; if
-    every search fails, the error is raised.
+    ``known_ids`` sind IDs bereits gespeicherter Stellen; ihre Details werden
+    nicht erneut abgefragt. Eine einzelne scheiternde Suche hält die anderen
+    nicht auf; scheitern alle Suchen, wird der Fehler geworfen.
     """
     normalized_terms = [term.strip() for term in terms if term and term.strip()]
     if not normalized_terms:
@@ -394,7 +394,7 @@ def search_vacancies(
     if searches and succeeded == 0:
         raise ArbeitsagenturError("; ".join(errors)[:500])
 
-    # Newest first, so the limit and the detail budget go to fresh vacancies.
+    # Neueste zuerst, damit Limit und Detailbudget an frische Stellen gehen.
     ordered = sorted(found.values(), key=lambda v: v["published_at"] or "", reverse=True)[:limit]
     details_left = max(0, int(max_details))
     for vacancy in ordered:

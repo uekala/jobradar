@@ -1,4 +1,4 @@
-"""Adapter for the job search of the Bundesagentur für Arbeit."""
+"""Adapter für die Jobsuche der Bundesagentur für Arbeit."""
 from datetime import date
 
 import pytest

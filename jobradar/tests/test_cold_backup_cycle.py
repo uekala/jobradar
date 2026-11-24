@@ -1,21 +1,21 @@
-"""End-to-end check of a Home Assistant cold backup and restore.
+"""Ende-zu-Ende-Prüfung eines Cold-Backups und einer Wiederherstellung in Home Assistant.
 
-With ``backup: cold`` the Supervisor stops the app (SIGTERM), archives
-``/data`` and starts the app again. These tests run the real service with the
-exact command from the Dockerfile and walk through that cycle:
+Mit ``backup: cold`` stoppt der Supervisor die App (SIGTERM), archiviert
+``/data`` und startet die App wieder. Diese Tests starten den echten Dienst mit
+genau dem Befehl aus dem Dockerfile und gehen diesen Ablauf durch:
 
-1. write data through the API and take an internal backup,
-2. stop with SIGTERM and require a clean exit within the Supervisor's
-   default stop timeout,
-3. check that ``/data`` holds a complete, consistent database (no journal,
-   no half-written backup, ``PRAGMA integrity_check`` ok),
-4. archive ``/data`` like a Home Assistant backup,
-5. restart on the original data, then lose data on purpose,
-6. restore the archive into an empty ``/data`` and compare every record,
-7. restore the internal backup with ``python -m app.backup restore-to`` and
-   compare again.
+1. Daten über die API schreiben und ein internes Backup anlegen,
+2. mit SIGTERM stoppen und ein sauberes Ende innerhalb des Standard-Stopp-
+   Timeouts des Supervisors verlangen,
+3. prüfen, dass ``/data`` eine vollständige, konsistente Datenbank enthält (kein
+   Journal, kein halb geschriebenes Backup, ``PRAGMA integrity_check`` ok),
+4. ``/data`` wie ein Home-Assistant-Backup archivieren,
+5. auf den ursprünglichen Daten neu starten, dann absichtlich Daten verlieren,
+6. das Archiv in ein leeres ``/data`` zurückspielen und jeden Datensatz vergleichen,
+7. das interne Backup mit ``python -m app.backup restore-to`` wiederherstellen
+   und erneut vergleichen.
 
-All data here is synthetic test data.
+Alle Daten hier sind erfundene Testdaten.
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ import httpx
 import pytest
 
 APP_DIR = Path(__file__).resolve().parents[1]
-SUPERVISOR_STOP_TIMEOUT = 10  # seconds the Supervisor waits before SIGKILL (add-on default)
+SUPERVISOR_STOP_TIMEOUT = 10  # Sekunden, die der Supervisor bis SIGKILL wartet (Add-on-Standard)
 
 pytestmark = pytest.mark.skipif(
     not hasattr(signal, "SIGTERM") or os.name != "posix",
@@ -57,7 +57,7 @@ def _free_port() -> int:
 
 
 class Service:
-    """The add-on process, started like the container starts it."""
+    """Der Add-on-Prozess, gestartet wie im Container."""
 
     def __init__(self, data_dir: Path, log_file: Path):
         self.data_dir = data_dir
@@ -102,7 +102,7 @@ class Service:
         raise AssertionError(f"Dienst antwortet nicht:\n{self.log()}")
 
     def stop(self) -> tuple[int, float]:
-        """Send SIGTERM like the Supervisor and wait at most its stop timeout."""
+        """Sendet SIGTERM wie der Supervisor und wartet höchstens dessen Stopp-Timeout."""
         assert self.process is not None
         started = time.monotonic()
         self.process.send_signal(signal.SIGTERM)
@@ -197,9 +197,9 @@ def snapshot(service: Service) -> dict:
 
 
 def assert_clean_exit(service: Service, code: int) -> None:
-    # uvicorn shuts down gracefully and then re-raises SIGTERM, so the
-    # process ends "by signal" (Docker shows exit code 143). What counts is
-    # that the lifespan shutdown ran to the end.
+    # uvicorn fährt sauber herunter und löst SIGTERM danach erneut aus, deshalb
+    # endet der Prozess „durch Signal“ (Docker zeigt Exit-Code 143). Entscheidend
+    # ist, dass das Herunterfahren im Lifespan bis zum Ende lief.
     log = service.log()
     assert code in (0, -signal.SIGTERM), log
     assert "Jobradar beendet, Datenbank geschlossen" in log
@@ -224,7 +224,7 @@ def assert_cleanly_closed(data_dir: Path) -> None:
 
 
 def ha_backup(data_dir: Path, archive: Path) -> None:
-    """Archive /data the way a Home Assistant backup stores an add-on's data."""
+    """Archiviert /data so, wie ein Home-Assistant-Backup die Daten eines Add-ons ablegt."""
     with tarfile.open(archive, "w:gz") as tar:
         tar.add(data_dir, arcname="data")
 
@@ -244,27 +244,27 @@ def test_cold_backup_and_restore_keep_every_record(services, tmp_path):
     internal = original.send("POST", "/api/backups", {})
     assert internal["rows"]["jobs"] == 5
 
-    # 1. Supervisor stops the app for the cold backup.
+    # 1. Der Supervisor stoppt die App für das Cold-Backup.
     code, seconds = original.stop()
     assert_clean_exit(original, code)
     assert seconds < SUPERVISOR_STOP_TIMEOUT
     assert_cleanly_closed(original.data_dir)
 
-    # 2. Supervisor archives /data and starts the app again.
+    # 2. Der Supervisor archiviert /data und startet die App wieder.
     archive = tmp_path / "ha-backup.tar.gz"
     ha_backup(original.data_dir, archive)
     original.start()
     assert snapshot(original) == expected
     original.stop()
 
-    # 3. Data gets lost after the backup.
+    # 3. Nach dem Backup gehen Daten verloren.
     with sqlite3.connect(original.data_dir / "jobradar.db") as db:
         db.execute("DELETE FROM jobs")
     original.start()
     assert snapshot(original)["jobs"] == []
     original.stop()
 
-    # 4. Restore the Home Assistant backup into an empty /data.
+    # 4. Das Home-Assistant-Backup in ein leeres /data zurückspielen.
     restored_dir = ha_restore(archive, tmp_path / "restored")
     restored = Service(restored_dir, tmp_path / "restored.log")
     restored.start()
@@ -276,7 +276,7 @@ def test_cold_backup_and_restore_keep_every_record(services, tmp_path):
     finally:
         restored.stop()
 
-    # 5. Restore the internal backup into a new file with the CLI.
+    # 5. Das interne Backup mit der CLI in eine neue Datei wiederherstellen.
     target_dir = tmp_path / "from-internal" / "data"
     result = subprocess.run(
         [

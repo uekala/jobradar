@@ -100,7 +100,7 @@ def test_import_keeps_ids_status_notes_scores_and_archives_every_document(client
     assert b["updated_at"] == "2026-01-02T09:29:59Z"
     c = jobs["beispiel-c-helpdesk"]
     assert c["status"] == "verworfen"
-    assert c["url"].endswith("-inline.")  # stored as exported, not repaired
+    assert c["url"].endswith("-inline.")  # so gespeichert wie exportiert, nicht repariert
     assert c["published_at"] is None
 
     assert [run["started_at"] for run in runs] == ["2026-01-01T06:00:00Z", "2026-01-02T06:00:00Z"]

@@ -47,7 +47,7 @@ PROFILE_FIELD_MAP = {
 
 
 def split_list(value: Any) -> list[str]:
-    """Split a comma or newline separated list, keeping commas inside parentheses."""
+    """Teilt eine durch Komma oder Zeilenumbruch getrennte Liste; Kommas in Klammern bleiben."""
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
     if not isinstance(value, str):
@@ -85,7 +85,7 @@ def _is_iso(value: Any) -> bool:
 
 
 def _found_before_filter(je_quelle: Any, fallback: int) -> int:
-    """Sum the 'found' part of 'Quelle 41/6, Quelle 12/2'; fall back to the stored count."""
+    """Summiert den Teil „gefunden“ aus 'Quelle 41/6, Quelle 12/2'; sonst die gespeicherte Zahl."""
     if not isinstance(je_quelle, str) or not je_quelle.strip():
         return fallback
     pairs = re.findall(r"(\d+)\s*/\s*\d+", je_quelle)
@@ -363,7 +363,7 @@ def _archive_rest(collections: dict[str, list[dict[str, Any]]], archived: set[st
 
 
 def run_import(db: Any, export: dict[str, Any], *, dry_run: bool, overwrite_profile: bool, now: str) -> dict[str, Any]:
-    """Check (and unless ``dry_run``, apply) a Jobradar export. Returns the import report."""
+    """Prüft einen Jobradar-Export, übernimmt ihn außer bei ``dry_run``; gibt den Bericht zurück."""
     plan = _Plan()
     if not isinstance(export, dict):
         export = {}
@@ -454,7 +454,7 @@ def run_import(db: Any, export: dict[str, Any], *, dry_run: bool, overwrite_prof
 
 
 def imported_details(import_json: str | None) -> dict[str, Any] | None:
-    """Return the original assessment of an imported job for the detail view."""
+    """Gibt die ursprüngliche Bewertung einer importierten Stelle für die Detailansicht zurück."""
     if not import_json:
         return None
     try:

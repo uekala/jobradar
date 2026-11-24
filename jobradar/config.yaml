@@ -8,15 +8,15 @@ arch:
 startup: application
 boot: auto
 init: false
-# Home Assistant stops the app while it backs up /data, so the SQLite file
-# in the backup is always consistent.
+# Home Assistant stoppt die App, während es /data sichert, deshalb ist die
+# SQLite-Datei im Backup immer konsistent.
 backup: cold
 ingress: true
 ingress_port: 8099
 panel_icon: mdi:briefcase-search
 panel_title: Jobradar
-# The daily search run tells Home Assistant about new vacancies through a
-# notify service, so the app needs access to the Home Assistant API.
+# Der tägliche Suchlauf meldet neue Stellen über einen Notify-Dienst an
+# Home Assistant, deshalb braucht die App Zugriff auf die Home-Assistant-API.
 homeassistant_api: true
 options:
   search_time: "06:30"
