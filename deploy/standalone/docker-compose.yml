@@ -1,0 +1,30 @@
+services:
+  jobradar:
+    image: ghcr.io/uekala/jobradar:latest
+    container_name: jobradar
+    restart: unless-stopped
+    environment:
+      # Ortszeit für den täglichen Suchlauf.
+      TZ: ${TZ:-Europe/Berlin}
+      # Anmeldung an Oberfläche und API. Ohne Passwort ist beides für jeden offen, der den Port erreicht.
+      JOBRADAR_WEB_USER: ${JOBRADAR_WEB_USER:-jobradar}
+      JOBRADAR_WEB_PASSWORD: ${JOBRADAR_WEB_PASSWORD:?JOBRADAR_WEB_PASSWORD in der Datei .env setzen}
+      # Täglicher Suchlauf (HH:MM); leer schaltet ihn ab.
+      JOBRADAR_SEARCH_TIME: ${JOBRADAR_SEARCH_TIME:-06:30}
+      # Optional: neue Stellen über Home Assistant melden.
+      JOBRADAR_NOTIFY_SERVICE: ${JOBRADAR_NOTIFY_SERVICE:-}
+      JOBRADAR_NOTIFY_MIN_SCORE: ${JOBRADAR_NOTIFY_MIN_SCORE:-70}
+      HA_URL: ${HA_URL:-}
+      HA_TOKEN: ${HA_TOKEN:-}
+    ports:
+      # Nur im Heimnetz nutzen und nie am Router freigeben. Ist 8099 belegt, die linke Zahl ändern.
+      - "8099:8099"
+    volumes:
+      # Datenbank und ihre Sicherungen
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8099/api/health', timeout=4).read()"]
+      interval: 60s
+      timeout: 6s
+      retries: 3
+      start_period: 30s

@@ -1,5 +1,12 @@
 # Änderungen der Jobradar-App
 
+## 0.6.0
+
+- **Eigenständiger Betrieb.** Jobradar läuft auch ohne Home Assistant OS als gewöhnlicher Docker-Container, zum Beispiel auf Unraid. Fertiges Image für amd64 und arm64 unter `ghcr.io/uekala/jobradar`, Anleitung unter `deploy/standalone`.
+- **Eigene Anmeldung.** Mit `JOBRADAR_WEB_PASSWORD` fragen Oberfläche und API nach Benutzername und Passwort. Nach fünf falschen Anmeldungen ist die Adresse fünf Minuten gesperrt, und schreibende Anfragen von fremden Seiten werden abgelehnt. Als Home-Assistant-App meldet weiterhin Home Assistant an.
+- **Meldungen ohne Supervisor.** Im eigenständigen Betrieb gehen die Benachrichtigungen über `HA_URL` und `HA_TOKEN` an Home Assistant.
+- Uhrzeit, Benachrichtigungsdienst und Mindestpunktzahl lassen sich auch als Umgebungsvariablen setzen (`JOBRADAR_SEARCH_TIME`, `JOBRADAR_NOTIFY_SERVICE`, `JOBRADAR_NOTIFY_MIN_SCORE`).
+
 ## 0.5.1
 
 - **Korrektur:** Die Seitenleiste des Dashboards war breiter als vorgesehen und lief über den rechten Rand; auf dem Handy war die Seite seitlich verschiebbar und die Punkte der Stellen abgeschnitten. Kopfzeilen mit mehreren Knöpfen brechen jetzt um.

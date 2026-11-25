@@ -33,6 +33,11 @@ Die Bewertungslogik der alten Integration und des neuen Dienstes unterscheidet s
 - `docs/`: Architektur- und Betriebsdokumentation.
 - `archive/`: archivierte ältere Übersichtsseite.
 
+## Ohne Home Assistant OS (Docker, z. B. Unraid)
+
+Der Dienst läuft auch als eigenständiger Container, mit eigener Anmeldung statt der von Home Assistant.
+Einrichtung und Umzug stehen in [deploy/standalone](deploy/standalone/README.md).
+
 ## Entwicklung und Tests
 
 ### Eigenständiger Dienst

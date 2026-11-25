@@ -2,16 +2,20 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import hmac
 import json
 import logging
 import os
 import threading
+import time
 from datetime import datetime, timezone
 from typing import Any, Literal
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from contextlib import asynccontextmanager
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -101,6 +105,10 @@ async def backup_loop(stop: asyncio.Event, interval: float) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     initialize_database()
+    if not os.environ.get("SUPERVISOR_TOKEN") and not web_password():
+        _LOGGER.warning(
+            "Eigenständiger Betrieb ohne JOBRADAR_WEB_PASSWORD: Die Oberfläche ist für jeden offen, der den Port erreicht"
+        )
     for leftover in remove_stale_partials():
         _LOGGER.warning("Unvollständiges Backup entfernt: %s", leftover.name)
     # Erste Prüfung, bevor die App Anfragen bedient, wie bisher.
@@ -131,10 +139,78 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Jobradar",
-    version="0.5.1",
+    version="0.6.0",
     description="Lokaler, KI-unabhängiger Jobradar für Home Assistant",
     lifespan=lifespan,
 )
+
+# ---------- Anmeldung im eigenständigen Betrieb ----------
+# Als Home-Assistant-App meldet Home Assistant an (Ingress). Läuft Jobradar als gewöhnlicher
+# Container, schützt JOBRADAR_WEB_PASSWORD die Oberfläche und die API per HTTP Basic.
+LOGIN_LIMIT = 5
+LOGIN_WINDOW = 300.0
+_LOGIN_FAILURES: dict[str, list[float]] = {}
+
+
+def web_password() -> str:
+    """Passwort der Oberfläche im eigenständigen Betrieb; leer heißt: keine eigene Anmeldung."""
+    if os.environ.get("SUPERVISOR_TOKEN"):
+        return ""
+    return os.environ.get("JOBRADAR_WEB_PASSWORD", "")
+
+
+def _basic_credentials(header: str | None) -> tuple[str, str]:
+    kind, _, value = (header or "").partition(" ")
+    if kind.lower() != "basic":
+        return "", ""
+    try:
+        user, _, password = base64.b64decode(value.strip(), validate=True).decode("utf-8").partition(":")
+    except ValueError:
+        return "", ""
+    return user, password
+
+
+def _same_origin(request: Request) -> bool:
+    """Schreibende Anfragen nur von der eigenen Seite, nicht von fremden Seiten im selben Browser."""
+    site = request.headers.get("sec-fetch-site", "").lower()
+    if site and site not in ("same-origin", "none"):
+        return False
+    origin = request.headers.get("origin")
+    if origin is None:
+        return True
+    return urlsplit(origin).netloc.lower() == request.headers.get("host", "").lower()
+
+
+@app.middleware("http")
+async def web_login(request: Request, call_next):
+    password = web_password()
+    # /api/health bleibt offen, damit Container-Prüfungen und Überwachung ohne Passwort auskommen.
+    if not password or request.url.path == "/api/health":
+        return await call_next(request)
+    peer = request.client.host if request.client else ""
+    now = time.monotonic()
+    recent = [stamp for stamp in _LOGIN_FAILURES.get(peer, []) if now - stamp < LOGIN_WINDOW]
+    if len(recent) >= LOGIN_LIMIT:
+        return JSONResponse(
+            {"detail": "Zu viele Anmeldeversuche. Bitte fünf Minuten warten."},
+            status_code=429, headers={"Retry-After": str(int(LOGIN_WINDOW))},
+        )
+    if request.method not in ("GET", "HEAD", "OPTIONS") and not _same_origin(request):
+        return JSONResponse({"detail": "Anfrage von einer fremden Seite abgelehnt."}, status_code=403)
+    user, given = _basic_credentials(request.headers.get("authorization"))
+    expected_user = os.environ.get("JOBRADAR_WEB_USER", "").strip() or "jobradar"
+    user_ok = hmac.compare_digest(user.encode(), expected_user.encode())
+    password_ok = hmac.compare_digest(given.encode(), password.encode())
+    if user_ok and password_ok:
+        return await call_next(request)
+    if user or given:
+        if len(_LOGIN_FAILURES) > 1000:
+            _LOGIN_FAILURES.clear()
+        _LOGIN_FAILURES[peer] = recent + [now]
+    return JSONResponse(
+        {"detail": "Anmeldung erforderlich."}, status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="Jobradar", charset="UTF-8"'},
+    )
 
 
 class JobCreate(BaseModel):
