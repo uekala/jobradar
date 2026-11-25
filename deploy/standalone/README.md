@@ -36,6 +36,12 @@ Image: `ghcr.io/uekala/jobradar` (amd64 und arm64), Tags `latest` und die Versio
 4. Im Browser `http://<IP des Servers>:8099` öffnen und anmelden. Der Benutzername ist `jobradar`, solange
    `JOBRADAR_WEB_USER` nichts anderes vorgibt.
 
+**Unraid:** entweder mit dem Plugin „Docker Compose Manager“ wie oben, oder als einzelner Container mit dem
+Repository `ghcr.io/uekala/jobradar`, dem Pfad `/data` (z. B. `/mnt/user/appdata/jobradar/data`) und dem
+Container-Port 8099. Ist 8099 auf dem Server schon vergeben, außen einen anderen Port wählen (z. B. `8096:8099`).
+Die Variablen lassen sich in einer Datei sammeln und unter „Extra Parameters“ mit `--env-file=<Pfad>` laden;
+die Datei mit `chmod 600` schützen.
+
 ## Umgebungsvariablen
 
 | Variable | Bedeutung | Standard |
