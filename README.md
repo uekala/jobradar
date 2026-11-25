@@ -18,7 +18,7 @@ Dieses private Repository bündelt die bisherigen Jobradar-Bestandteile und häl
 
 ## Zielarchitektur und Grenzen
 
-Das langfristige Ziel ist eine zentrale, lokal betriebene Jobradar-Anwendung auf Home Assistant Green. Die bestehende Home-Assistant-Integration und der neue eigenständige Dienst teilen während der Konsolidierung zunächst weder Laufzeit noch Datenbank. Auch das Claude-Artifact bleibt bis zu einer separat geprüften Migration ein eigener Datenbestand.
+Das langfristige Ziel ist eine zentrale, lokal betriebene Jobradar-Anwendung. Der Dienst läuft dafür als eigenständiger Docker-Container auf einem Heimserver (siehe [deploy/standalone](deploy/standalone/README.md)); Home Assistant ist nur noch für Benachrichtigungen angebunden. Die bestehende Home-Assistant-Integration und der neue eigenständige Dienst teilen während der Konsolidierung zunächst weder Laufzeit noch Datenbank. Auch das Claude-Artifact bleibt bis zu einer separat geprüften Migration ein eigener Datenbestand.
 
 Die Bewertungslogik der alten Integration und des neuen Dienstes unterscheidet sich. Sie wird nicht blind vereinheitlicht; eine fachliche Entscheidung und Regressionstests sind Voraussetzung.
 
