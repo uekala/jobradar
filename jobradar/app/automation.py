@@ -28,23 +28,38 @@ LAST_SCHEDULED_KEY = "last_scheduled_search"
 CHECK_SECONDS = 60.0
 MAX_LISTED = 3
 
+# Im eigenständigen Betrieb (Docker ohne Home Assistant OS) lassen sich die Optionen auch so setzen.
+ENV_OPTIONS = {
+    "search_time": "JOBRADAR_SEARCH_TIME",
+    "notify_service": "JOBRADAR_NOTIFY_SERVICE",
+    "notify_min_score": "JOBRADAR_NOTIFY_MIN_SCORE",
+}
+
 _TIME = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 _SERVICE = re.compile(r"^[a-z0-9_]+$")
 
 
 def load_options(path: str | None = None) -> dict[str, Any]:
-    """Liest die App-Optionen. Fehlt die Datei, sind Zeitplan und Push aus."""
+    """Liest die App-Optionen. Fehlt die Datei, sind Zeitplan und Push aus.
+
+    Gesetzte Umgebungsvariablen (``JOBRADAR_SEARCH_TIME``, ``JOBRADAR_NOTIFY_SERVICE``,
+    ``JOBRADAR_NOTIFY_MIN_SCORE``) haben Vorrang vor der Datei.
+    """
     file = Path(path or os.environ.get("JOBRADAR_OPTIONS_PATH", DEFAULT_OPTIONS_PATH))
     options: dict[str, Any] = {"search_time": "", "notify_service": "", "notify_min_score": 70}
+    raw: Any = {}
     try:
         raw = json.loads(file.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return options
+        pass
     except (OSError, ValueError) as err:
-        _LOGGER.warning("Optionen nicht lesbar (%s); Zeitplan und Push bleiben aus", err)
-        return options
+        _LOGGER.warning("Optionen nicht lesbar (%s); es gelten nur die Umgebungsvariablen", err)
     if not isinstance(raw, dict):
-        return options
+        raw = {}
+    for key, variable in ENV_OPTIONS.items():
+        value = os.environ.get(variable, "").strip()
+        if value:
+            raw[key] = value
 
     search_time = str(raw.get("search_time") or "").strip()
     if search_time and not _TIME.fullmatch(search_time):
@@ -128,12 +143,9 @@ def build_notification(result: dict[str, Any], min_score: int) -> tuple[str, str
     return title, "\n".join(lines)
 
 
-def _supervisor(method: str, path: str, payload: dict[str, Any] | None = None) -> Any:
-    token = os.environ.get("SUPERVISOR_TOKEN")
-    if not token:
-        raise RuntimeError("Kein Zugriff auf Home Assistant (SUPERVISOR_TOKEN fehlt)")
+def _request(url: str, token: str, method: str, payload: dict[str, Any] | None = None) -> Any:
     request = Request(
-        f"{SUPERVISOR_URL}{path}",
+        url,
         data=json.dumps(payload).encode("utf-8") if payload is not None else None,
         method=method,
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
@@ -147,6 +159,37 @@ def _supervisor(method: str, path: str, payload: dict[str, Any] | None = None) -
         return json.loads(body) if body else None
     except ValueError:
         return None
+
+
+def _supervisor(method: str, path: str, payload: dict[str, Any] | None = None) -> Any:
+    """Anfrage an den Supervisor; nur als Home-Assistant-App möglich."""
+    token = os.environ.get("SUPERVISOR_TOKEN")
+    if not token:
+        raise RuntimeError("Kein Zugriff auf Home Assistant (SUPERVISOR_TOKEN fehlt)")
+    return _request(f"{SUPERVISOR_URL}{path}", token, method, payload)
+
+
+def home_assistant_address() -> tuple[str, str] | None:
+    """Adresse und Token für den eigenständigen Betrieb (``HA_URL``, ``HA_TOKEN``), sonst ``None``.
+
+    Als Home-Assistant-App zählt immer der Supervisor.
+    """
+    if os.environ.get("SUPERVISOR_TOKEN"):
+        return None
+    url = os.environ.get("HA_URL", "").strip().rstrip("/")
+    token = os.environ.get("HA_TOKEN", "").strip()
+    if token and url.startswith(("http://", "https://")):
+        return url, token
+    return None
+
+
+def _home_assistant(method: str, path: str, payload: dict[str, Any] | None = None) -> Any:
+    """Ruft die API von Home Assistant auf, z. B. ``/api/services/notify/…``."""
+    direct = home_assistant_address()
+    if direct is None:
+        return _supervisor(method, f"/core{path}", payload)
+    url, token = direct
+    return _request(f"{url}{path}", token, method, payload)
 
 
 def panel_url() -> str | None:
@@ -163,9 +206,9 @@ def panel_url() -> str | None:
 def send_notification(service: str, title: str, message: str) -> None:
     """Sendet über einen Notify-Dienst von Home Assistant, z. B. ``mobile_app_pixel``."""
     if service == "persistent_notification":
-        _supervisor(
+        _home_assistant(
             "POST",
-            "/core/api/services/persistent_notification/create",
+            "/api/services/persistent_notification/create",
             {"title": title, "message": message, "notification_id": "jobradar"},
         )
         return
@@ -174,7 +217,7 @@ def send_notification(service: str, title: str, message: str) -> None:
     if url:
         # "url" öffnet das Panel unter iOS, "clickAction" unter Android.
         payload["data"] = {"url": url, "clickAction": url, "tag": "jobradar"}
-    _supervisor("POST", f"/core/api/services/notify/{service}", payload)
+    _home_assistant("POST", f"/api/services/notify/{service}", payload)
 
 
 def notify_result(result: dict[str, Any], options: dict[str, Any]) -> bool:
