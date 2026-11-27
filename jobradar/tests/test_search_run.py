@@ -283,6 +283,6 @@ def test_schedule_endpoint_reports_the_options(tmp_path, monkeypatch):
         schedule = client.get("/api/schedule").json()
         assert schedule["search_time"] == "06:30"
         assert schedule["notify"] is True and schedule["notify_min_score"] == 75
-        assert schedule["supported_sources"] == ["arbeitsagentur", "karriere-nrw"]
+        assert schedule["supported_sources"] == ["arbeitsagentur", "bund", "karriere-nrw"]
     finally:
         client.__exit__(None, None, None)

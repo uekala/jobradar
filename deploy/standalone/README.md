@@ -62,6 +62,50 @@ gesetzte Umgebungsvariablen haben Vorrang.
 `/api/health` antwortet ohne Anmeldung, damit Container-Prüfung und Überwachung ohne Passwort auskommen. Die
 Adresse verrät nur, ob der Dienst läuft.
 
+## Einrichtungsdatei
+
+Suchprofil, Quellen und Bewertungsregeln lassen sich als Datei vorgeben, statt sie in der Oberfläche
+anzulegen. Liegt beim Start `data/einrichtung.json` vor, übernimmt Jobradar sie einmal und benennt sie danach in
+`einrichtung.json.uebernommen-<Zeit>` um. Ein vorhandenes Suchprofil wird ersetzt; Quellen und Regeln mit
+derselben ID werden aktualisiert, alle anderen bleiben. Ist die Datei fehlerhaft, ändert Jobradar nichts, lässt
+sie liegen und schreibt den Grund ins Protokoll. Einen anderen Pfad setzt `JOBRADAR_SETUP_FILE`.
+
+```json
+{
+  "profil": {
+    "location": "Musterstadt", "radius_km": 50, "nationwide_remote": true,
+    "roles": ["Systemadministrator", "IT-Administrator"],
+    "skills": ["Linux", "VMware", "Ansible"],
+    "salary_min": 65000, "public_service_minimum": "EG 11",
+    "exclusions": ["Bisheriger Arbeitgeber GmbH"]
+  },
+  "quellen": [
+    {"id": "arbeitsagentur", "name": "Arbeitsagentur", "source_type": "api",
+     "base_url": "https://rest.arbeitsagentur.de/jobboerse/jobsuche-service",
+     "config": {"days": 7, "min_score": 50, "max_details": 40, "exclude_temp_agencies": true}},
+    {"id": "karriere-nrw", "name": "Karriere.NRW", "source_type": "api",
+     "base_url": "https://api.karriere.nrw/v1.0/opennrw", "config": {"limit": 50}},
+    {"id": "bund", "name": "service.bund.de", "source_type": "api", "enabled": false,
+     "queries": ["Systemadministrator", "IT-Administrator"], "config": {"limit": 150}}
+  ],
+  "regeln": [
+    {"id": "ausschluss", "data": {"name": "Ausbildung und Praktika", "category": "exclude",
+     "terms": ["Ausbildung", "Praktikum", "Werkstudent"], "scope": "title"}}
+  ]
+}
+```
+
+Ohne eigene `queries` sucht eine Quelle nach den Zielpositionen (`roles`) des Suchprofils. `"scope": "title"`
+lässt eine Regel nur im Titel suchen.
+
+## Quellen
+
+| ID | Quelle | Hinweis |
+|---|---|---|
+| `arbeitsagentur` | Jobbörse der Bundesagentur für Arbeit | Umkreis und, wenn im Profil gewählt, bundesweit Homeoffice |
+| `karriere-nrw` | Karriere.NRW, öffentlicher Dienst in NRW | Open-Data-Schnittstelle |
+| `bund` | service.bund.de, Bund, Länder und Kommunen | liest den angebotenen RSS-Feed, 30 Sekunden Pause je Suchbegriff. Die robots.txt der Seite schließt den Suchpfad für automatische Abrufe aus; die Quelle deshalb nur bewusst einschalten |
+
 ## Umzug von der Home-Assistant-App
 
 Alle Daten liegen in `jobradar.db` im Datenordner der App. Die Datei aus einem Backup der App oder aus dem

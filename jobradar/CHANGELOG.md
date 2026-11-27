@@ -1,5 +1,11 @@
 # Änderungen der Jobradar-App
 
+## 0.7.0
+
+- **service.bund.de als Quelle.** Stellen von Bund, Ländern und Kommunen aus dem RSS-Feed von service.bund.de, wie in der bisherigen Home-Assistant-Integration. Eine Abfrage je Suchbegriff mit 30 Sekunden Pause; einrichten über „service.bund.de hinzufügen“. Die Seite schließt ihren Suchpfad in der robots.txt für automatische Abrufe aus, deshalb fragt Jobradar vor dem Einrichten nach.
+- **Einrichtungsdatei.** Liegt beim Start `data/einrichtung.json` vor, übernimmt Jobradar daraus Suchprofil, Quellen und Bewertungsregeln einmal und benennt die Datei danach um. Anleitung unter `deploy/standalone`.
+- **Regeln nur im Titel.** Bewertungsregeln können nur den Titel durchsuchen („Nur im Titel suchen“). So werten Begriffe wie „Junior“ oder „Praktikum“ keine passende Stelle ab, nur weil sie in der Beschreibung vorkommen.
+
 ## 0.6.0
 
 - **Eigenständiger Betrieb.** Jobradar läuft auch ohne Home Assistant OS als gewöhnlicher Docker-Container, zum Beispiel auf Unraid. Fertiges Image für amd64 und arm64 unter `ghcr.io/uekala/jobradar`, Anleitung unter `deploy/standalone`.

@@ -71,7 +71,10 @@ def evaluate_vacancy_detailed(
         data = rule.get("data", rule)
         if rule.get("enabled") is False or data.get("enabled") is False:
             continue
-        matches = [term for term in _terms(data.get("terms")) if term.casefold() in haystack]
+        # scope "title": nur im Titel suchen, z. B. für „Junior“ oder „Praktikum“, die in
+        # Beschreibungen guter Stellen oft nebenbei vorkommen.
+        text = _text(vacancy.get("title")) if data.get("scope") == "title" else haystack
+        matches = [term for term in _terms(data.get("terms")) if term.casefold() in text]
         if not matches:
             continue
         category = data.get("category", "positive")
