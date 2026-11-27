@@ -1,5 +1,13 @@
 # Änderungen der Jobradar-App
 
+## 0.7.1
+
+- **Bedienung.** Fenster schließen mit Escape und Klick daneben, der Fokus springt ins erste Eingabefeld und danach zurück. Stellenkarten lassen sich mit Tab und Enter öffnen.
+- Meldungen erscheinen unten als kurze Einblendung statt als Browser-Hinweis, Fehler rot.
+- Der Status oben zeigt „Keine Verbindung“ oder „Letzter Suchlauf fehlgeschlagen“ statt immer „System bereit“; die Begrüßung folgt der Tageszeit.
+- Leere Liste: Hinweis auf Quelle und Suchlauf, bei aktiven Filtern „Filter zurücksetzen“. Ladefehler mit „Erneut versuchen“.
+- „… hinzufügen“ verschwindet, sobald die Quelle eingerichtet ist. Der überholte Hinweis „Score-Berechnung folgt separat“ ist weg.
+
 ## 0.7.0
 
 - **service.bund.de als Quelle.** Stellen von Bund, Ländern und Kommunen aus dem RSS-Feed von service.bund.de, wie in der bisherigen Home-Assistant-Integration. Eine Abfrage je Suchbegriff mit 30 Sekunden Pause; einrichten über „service.bund.de hinzufügen“. Die Seite schließt ihren Suchpfad in der robots.txt für automatische Abrufe aus, deshalb fragt Jobradar vor dem Einrichten nach.
