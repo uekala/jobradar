@@ -2,16 +2,13 @@
 
 ## Zielbild
 
-Der eigenständige Jobradar auf Home Assistant Green wird die zentrale Anwendung. Er übernimmt die bewährten Funktionen des bisherigen Claude-Jobradars, läuft im Alltag aber ohne Claude und ohne andere KI. Die Oberfläche wird modernisiert und für Desktop sowie Smartphone optimiert.
-
-Claude bleibt optionaler Helfer für Analysen und Bewerbungsunterlagen. Es ist keine Laufzeitabhängigkeit.
+Der eigenständige Jobradar auf Home Assistant Green wird die zentrale Anwendung. Er übernimmt die bewährten Funktionen des bisherigen Jobradars und läuft vollständig lokal. Die Oberfläche wird modernisiert und für Desktop sowie Smartphone optimiert.
 
 ## Leitprinzipien
 
 - Eine Anwendung, eine zentrale SQLite-Datenbank und ein einheitliches Dashboard.
 - Regelbasierte Suche, Normalisierung, Dublettenerkennung und Bewertung; reproduzierbar und testbar.
 - Bestehende Daten werden erst nach geprüftem Export, Mapping und erfolgreichem Import übernommen.
-- Bestehende Claude-Artifact-Daten und der Bewerbungs-Assistent bleiben bis zur bestätigten Migration unangetastet.
 - Keine öffentlichen Router-Ports und kein zusätzlicher Cloud-Tunnel. Zugriff über Home Assistant Ingress im Heimnetz und über das vorhandene VPN unterwegs.
 - Änderungen werden in kleinen, getesteten Schritten auf dem Branch `ha-green-foundation` entwickelt.
 
@@ -27,7 +24,7 @@ Claude bleibt optionaler Helfer für Analysen und Bewerbungsunterlagen. Es ist k
 | Zeitplanung | Scheduler im Add-on | tägliche Suche und wöchentliche Wartung |
 | Oberfläche | responsives Web-Dashboard | Desktop und Smartphone, eingebettet über Ingress |
 | Benachrichtigungen | Home Assistant | tägliche Zusammenfassung und wichtige Hinweise |
-| Quellcode | privates GitHub-Repository | Versionierung, Tests und reproduzierbare Builds |
+| Quellcode | öffentliches GitHub-Repository | Versionierung, Tests und reproduzierbare Builds |
 
 ## Dashboard – Gestaltungsrichtung
 
@@ -71,15 +68,13 @@ Das bestehende Schema ist ein Startpunkt. Vor dem Import werden Felder, Statuswe
 
 ## Migrationsstrategie
 
-1. Funktionen, Datenfelder, Quellen und Regeln des Claude-Jobradars dokumentieren.
+1. Funktionen, Datenfelder, Quellen und Regeln des bisherigen Jobradars dokumentieren.
 2. API und Datenmodell vervollständigen.
 3. Dashboard modernisieren und an die API anbinden.
-4. Quellenadapter und Bewertung unabhängig von Claude implementieren.
-5. Export des bisherigen Artifact-Datenbestands erstellen und in einer Testkopie importieren.
+4. Quellenadapter und regelbasierte Bewertung implementieren.
+5. Export des bisherigen Datenbestands erstellen und in einer Testkopie importieren.
 6. Datensatzanzahl, Status, Notizen, Scores und Lernregeln vergleichen.
 7. Erst nach erfolgreicher Abnahme den neuen Jobradar als alleinige tägliche Lösung verwenden.
-
-Die bisherige Artifact-Datenbank wird während der Entwicklung weder überschrieben noch gelöscht.
 
 ## Persistenz und Betrieb
 
