@@ -18,8 +18,8 @@ version = manifest.get("version")
 if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version):
     raise SystemExit(f"Invalid Home Assistant manifest version: {version!r}")
 
-# Die CHANGELOG.md im Wurzelverzeichnis gehört zum eigenständigen Dienst. Release-
-# Verlauf und Versionsprüfung der Integration bleiben auf ihr eigenes Verzeichnis beschränkt.
+# Jede Komponente führt ihren eigenen Release-Verlauf (jobradar/ und
+# custom_components/jobradar/). Geprüft wird hier nur der der Integration.
 changelog_path = integration_dir / "CHANGELOG.md"
 if changelog_path.exists():
     headings = re.findall(

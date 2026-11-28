@@ -13,12 +13,11 @@ Dieses private Repository bündelt die bisherigen Jobradar-Bestandteile und häl
 
 - **Home-Assistant-Integration** unter `custom_components/jobradar/` (bisheriges HACS-/Custom-Component-Projekt).
 - **Eigenständiger Jobradar-Dienst** unter `jobradar/` (FastAPI, SQLite und Home-Assistant-Add-on).
-- **Claude-Artifact-Übersichtsseite** als versionierte Quelldatei `uebersichtsseite.html`; die Live-Datenbank und geplanten Claude-Aufgaben bleiben vorerst in Claude.
-- **Dokumentation und Archiv** unter `docs/` und `archive/`.
+- **Dokumentation** unter `docs/`.
 
 ## Zielarchitektur und Grenzen
 
-Das langfristige Ziel ist eine zentrale, lokal betriebene Jobradar-Anwendung. Der Dienst läuft dafür als eigenständiger Docker-Container auf einem Heimserver (siehe [deploy/standalone](deploy/standalone/README.md)); Home Assistant ist nur noch für Benachrichtigungen angebunden. Die bestehende Home-Assistant-Integration und der neue eigenständige Dienst teilen während der Konsolidierung zunächst weder Laufzeit noch Datenbank. Auch das Claude-Artifact bleibt bis zu einer separat geprüften Migration ein eigener Datenbestand.
+Das langfristige Ziel ist eine zentrale, lokal betriebene Jobradar-Anwendung. Der Dienst läuft dafür als eigenständiger Docker-Container auf einem Heimserver (siehe [deploy/standalone](deploy/standalone/README.md)); Home Assistant ist nur noch für Benachrichtigungen angebunden. Die bestehende Home-Assistant-Integration und der neue eigenständige Dienst teilen während der Konsolidierung zunächst weder Laufzeit noch Datenbank.
 
 Die Bewertungslogik der alten Integration und des neuen Dienstes unterscheidet sich. Sie wird nicht blind vereinheitlicht; eine fachliche Entscheidung und Regressionstests sind Voraussetzung.
 
@@ -27,11 +26,8 @@ Die Bewertungslogik der alten Integration und des neuen Dienstes unterscheidet s
 - `custom_components/jobradar/`: bisherige Home-Assistant-Integration.
 - `jobradar/app/`: FastAPI-Anwendung und SQLite-Persistenz.
 - `jobradar/tests/`: Tests des eigenständigen Dienstes.
-- `tests/`: Tests der Home-Assistant-Integration sowie Dashboard-Smoke-Test.
-- `uebersichtsseite.html`: versionierter Quellstand des Claude-Artifacts.
-- `index.html`: eigenständige Dashboard-Oberfläche des Dienstes.
+- `tests/`: Tests der Home-Assistant-Integration.
 - `docs/`: Architektur- und Betriebsdokumentation.
-- `archive/`: archivierte ältere Übersichtsseite.
 
 ## Ohne Home Assistant OS (Docker, z. B. Unraid)
 
@@ -61,15 +57,7 @@ ruff format --check custom_components/jobradar tools/check_versions.py tests/tes
 pytest -q
 ```
 
-### Claude-Artifact-Übersichtsseite
-
-Mit Node.js 22 oder neuer:
-
-```bash
-node --test tests/validate.mjs
-```
-
-GitHub Actions prüft die Integration, den eigenständigen Dienst, die Dashboard-Quelldatei, den Secret-Scan und den ARM64-Add-on-Build.
+GitHub Actions prüft die Integration, den eigenständigen Dienst, den Secret-Scan und den ARM64-Add-on-Build.
 
 ## Home Assistant Green
 
@@ -77,15 +65,13 @@ Der eigenständige Dienst ist für Home Assistant OS auf ARM64 vorgesehen. Er ve
 
 Die bestehende Integration bleibt bis zur abgeschlossenen Migration verfügbar. Es erfolgt keine automatische Änderung an vorhandenen Home-Assistant-Installationen oder Datenbanken.
 
-## Claude-Artifact und Datenschutz
-
-Die Live-Suche und die Datenbank der bisherigen Claude-Artifact-Übersichtsseite laufen weiterhin in Claude. Das Repository enthält nur den versionierten Quelltext, nicht die Live-Datenbank. Änderungen an `uebersichtsseite.html` aktualisieren das Live-Artifact nicht automatisch; sie müssen separat veröffentlicht werden.
+## Datenschutz
 
 Das Repository bleibt privat. Suchprofil, konkrete Stellen, Notizen, Lernregeln und Laufdaten gehören nicht in Quelldateien oder Commits. Keine Zugangsdaten, Tokens oder privaten Schlüssel einchecken.
 
 ## Datenmigration und Sicherheit
 
-- Die bisherige Claude-Artifact-Datenbank bleibt unangetastet, bis Export, Mapping, Trockenlauf und Import geprüft sind.
+- Daten aus dem bisherigen Jobradar werden über den Import übernommen (siehe [docs/import.md](docs/import.md)); der Import läuft zuerst als Probelauf.
 - Die bestehende Jobradar-Integration wird nicht automatisch deinstalliert oder ersetzt.
 - Test- und Produktionsdatenbanken bleiben getrennt.
 - Keine Installation, Aktivierung oder Migration auf dem produktiven Home Assistant ohne ausdrückliche Freigabe.
