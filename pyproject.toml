@@ -10,8 +10,9 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
-# Deutsche Typografie (Gedankenstriche) ist gewollt
-ignore = ["RUF001", "RUF002", "RUF003"]
+# E501: Zeilenlänge regelt der Formatierer. RUF001–003: deutsche Typografie ist gewollt.
+# B008: Depends() und Body() in FastAPI-Signaturen sind so vorgesehen.
+ignore = ["E501", "RUF001", "RUF002", "RUF003", "B008"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["custom_components"]

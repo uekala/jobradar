@@ -18,7 +18,7 @@ import os
 import re
 import sqlite3
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from .database import database_path
@@ -45,7 +45,7 @@ def _slug(reason: str) -> str:
 
 
 def _target_path(directory: Path, reason: str) -> Path:
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     candidate = directory / f"jobradar-{stamp}-{_slug(reason)}.db"
     counter = 1
     while candidate.exists():
@@ -173,8 +173,8 @@ def latest_backup_age(directory: Path | None = None) -> timedelta | None:
     backups = list_backups(directory)
     if not backups:
         return None
-    modified = datetime.fromtimestamp(backups[0].stat().st_mtime, tz=timezone.utc)
-    return datetime.now(timezone.utc) - modified
+    modified = datetime.fromtimestamp(backups[0].stat().st_mtime, tz=UTC)
+    return datetime.now(UTC) - modified
 
 
 def ensure_recent_backup(

@@ -12,8 +12,9 @@ from __future__ import annotations
 import base64
 import json
 import time
-from datetime import date, datetime, timedelta, timezone
-from typing import Any, Callable
+from collections.abc import Callable
+from datetime import UTC, date, datetime, timedelta
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -351,7 +352,7 @@ def search_vacancies(
     if not normalized_terms:
         raise ValueError("Mindestens ein Suchbegriff ist erforderlich")
     days = max(1, min(100, int(days)))
-    today = today or datetime.now(timezone.utc).date()
+    today = today or datetime.now(UTC).date()
     known = known_ids or set()
     client = _Client(_get_json, time.sleep)
 

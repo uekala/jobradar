@@ -1,8 +1,6 @@
 """Suchlauf über mehrere Quellen, täglicher Zeitplan und Benachrichtigungen."""
 import json
-from datetime import datetime, timezone
-
-from fastapi.testclient import TestClient
+from datetime import UTC, datetime
 
 from app import automation, main
 from app.automation import (
@@ -14,6 +12,7 @@ from app.automation import (
 )
 from app.database import connect
 from app.main import app
+from fastapi.testclient import TestClient
 
 
 def client_for(tmp_path, monkeypatch):
@@ -174,9 +173,9 @@ def test_options_are_validated(tmp_path):
 
 
 def test_search_is_due_once_per_day_from_the_configured_time():
-    morning = datetime(2026, 11, 13, 6, 29, tzinfo=timezone.utc)
-    due = datetime(2026, 11, 13, 6, 30, tzinfo=timezone.utc)
-    late = datetime(2026, 11, 13, 15, 0, tzinfo=timezone.utc)
+    morning = datetime(2026, 11, 13, 6, 29, tzinfo=UTC)
+    due = datetime(2026, 11, 13, 6, 30, tzinfo=UTC)
+    late = datetime(2026, 11, 13, 15, 0, tzinfo=UTC)
 
     assert not search_due(morning, "06:30", None)
     assert search_due(due, "06:30", "2026-11-12")
@@ -251,11 +250,11 @@ def test_scheduled_search_runs_once_per_day_even_if_it_fails(tmp_path, monkeypat
 
     options = {"search_time": "06:30", "notify_service": "", "notify_min_score": 70}
     try:
-        day1 = datetime(2026, 11, 13, 7, 0, tzinfo=timezone.utc)
+        day1 = datetime(2026, 11, 13, 7, 0, tzinfo=UTC)
         assert run_scheduled_search(run, options, now=day1) is None
         assert run_scheduled_search(run, options, now=day1) is None
         assert calls == ["schedule"]
-        day2 = datetime(2026, 11, 14, 6, 30, tzinfo=timezone.utc)
+        day2 = datetime(2026, 11, 14, 6, 30, tzinfo=UTC)
         assert run_scheduled_search(run, options, now=day2) is not None
         assert calls == ["schedule", "schedule"]
         assert client.get("/api/schedule").json()["last_scheduled"] == "2026-11-14"

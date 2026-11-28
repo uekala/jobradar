@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app.sources.bund import BundError, feed_params, parse_feed, search_vacancies
 
 

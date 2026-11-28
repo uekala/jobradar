@@ -2,7 +2,6 @@
 from datetime import date
 
 import pytest
-
 from app.sources import arbeitsagentur
 from app.sources.arbeitsagentur import (
     ArbeitsagenturError,

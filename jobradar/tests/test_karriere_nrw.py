@@ -54,8 +54,8 @@ def test_search_fetches_details_and_normalizes_vacancy(monkeypatch):
 
 
 def test_search_run_persists_vacancies_and_updates_existing_without_resetting_status(tmp_path, monkeypatch):
-    from fastapi.testclient import TestClient
     from app.main import app
+    from fastapi.testclient import TestClient
 
     db_file = tmp_path / "search.sqlite3"
     monkeypatch.setenv("JOBRADAR_DB_PATH", str(db_file))

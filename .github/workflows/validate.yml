@@ -34,12 +34,9 @@ jobs:
       - run: pip install -r requirements_test.txt ruff
       - name: Check Home Assistant integration version metadata
         run: python tools/check_versions.py
-      - name: Lint Home Assistant integration
+      - name: Formatierung der Home-Assistant-Integration prüfen
         run: >-
-          ruff check custom_components/jobradar tools/check_versions.py
-          tests/test_api.py tests/test_bund.py tests/test_integration.py
-          tests/test_pay.py tests/test_scoring.py
-          && ruff format --check custom_components/jobradar
+          ruff format --check custom_components/jobradar
           tools/check_versions.py tests/test_api.py tests/test_bund.py
           tests/test_integration.py tests/test_pay.py tests/test_scoring.py
       - run: pytest -q

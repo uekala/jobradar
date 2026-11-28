@@ -1,8 +1,8 @@
 import os
 import sqlite3
 import stat
-from pathlib import Path
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 from app import backup
