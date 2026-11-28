@@ -1,5 +1,11 @@
 # Änderungen der Jobradar-App
 
+## 0.8.1
+
+- Reiter „Stellen / Bewerbungen / Einrichtung“ passen auch auf Handys mit 320 px Breite.
+- Screenreader: Die Filter „Status“ und „Mindest-Score“ und das Dateifeld beim Import haben eine Beschriftung.
+- Eigenes Symbol im Browser-Tab.
+
 ## 0.8.0
 
 - **Bewerbungen.** Neue Ansicht mit drei Spalten Gemerkt, Beworben und Absage, jeweils mit Datum. Bewerbungen ohne Antwort seit 14 Tagen sind markiert.
