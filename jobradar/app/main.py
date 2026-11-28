@@ -81,7 +81,7 @@ def run_scheduled_backup() -> None:
         created = ensure_recent_backup()
         if created is not None:
             _LOGGER.info("Backup angelegt: %s", created.name)
-    except Exception as err:
+    except Exception as err:  # ein gescheitertes Backup hält den Dienst nicht an
         # Der Dienst läuft weiter; die nächste Prüfung versucht es erneut.
         _LOGGER.error("Tägliches Backup fehlgeschlagen: %s", err)
 
@@ -1012,7 +1012,7 @@ def _search_run(trigger: str) -> dict[str, Any]:
                             db.execute(
                                 "UPDATE jobs SET last_seen_at=? WHERE id=?", (now, vacancy["id"])
                             )
-        except Exception as exc:
+        except Exception as exc:  # eine Quelle mit Fehler hält die anderen nicht auf
             errors.append(f"{source['name']}: {exc}")
 
     with connect() as db:
