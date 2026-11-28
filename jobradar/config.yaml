@@ -1,5 +1,5 @@
 name: Jobradar
-version: "0.7.1"
+version: "0.8.0"
 slug: jobradar
 description: "Eigenständiger, lokaler Jobradar für Home Assistant Green"
 url: https://github.com/uekala/jobradar
