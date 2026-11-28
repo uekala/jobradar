@@ -9,12 +9,12 @@ import logging
 import os
 import threading
 import time
-from datetime import datetime, timezone
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from typing import Any, Literal
 from urllib.parse import urlsplit
 from uuid import uuid4
 
-from contextlib import asynccontextmanager
 from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -31,16 +31,16 @@ from .backup import (
 )
 from .database import connect, database_is_ready, database_path, initialize_database
 from .importer import imported_details, run_import
+from .scoring import evaluate_vacancy, evaluate_vacancy_detailed
 from .sources.arbeitsagentur import search_vacancies as search_arbeitsagentur
 from .sources.bund import search_vacancies as search_bund
 from .sources.karriere_nrw import search_vacancies
-from .scoring import evaluate_vacancy, evaluate_vacancy_detailed
 
 JobStatus = Literal["neu", "gemerkt", "beworben", "absage", "verworfen"]
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 _LOGGER = logging.getLogger("jobradar")
@@ -81,7 +81,7 @@ def run_scheduled_backup() -> None:
         created = ensure_recent_backup()
         if created is not None:
             _LOGGER.info("Backup angelegt: %s", created.name)
-    except Exception as err:  # noqa: BLE001 - ein gescheitertes Backup hält den Dienst nicht an
+    except Exception as err:  # ein gescheitertes Backup hält den Dienst nicht an
         # Der Dienst läuft weiter; die nächste Prüfung versucht es erneut.
         _LOGGER.error("Tägliches Backup fehlgeschlagen: %s", err)
 
@@ -208,7 +208,7 @@ async def web_login(request: Request, call_next):
     if user or given:
         if len(_LOGIN_FAILURES) > 1000:
             _LOGIN_FAILURES.clear()
-        _LOGIN_FAILURES[peer] = recent + [now]
+        _LOGIN_FAILURES[peer] = [*recent, now]
     return JSONResponse(
         {"detail": "Anmeldung erforderlich."}, status_code=401,
         headers={"WWW-Authenticate": 'Basic realm="Jobradar", charset="UTF-8"'},
@@ -324,7 +324,7 @@ def backups() -> dict[str, Any]:
         {
             "file": path.name,
             "size_bytes": path.stat().st_size,
-            "created_at": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(),
+            "created_at": datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(),
         }
         for path in list_backups()
     ]
@@ -1012,7 +1012,7 @@ def _search_run(trigger: str) -> dict[str, Any]:
                             db.execute(
                                 "UPDATE jobs SET last_seen_at=? WHERE id=?", (now, vacancy["id"])
                             )
-        except Exception as exc:  # noqa: BLE001 - eine Quelle mit Fehler hält die anderen nicht auf
+        except Exception as exc:  # eine Quelle mit Fehler hält die anderen nicht auf
             errors.append(f"{source['name']}: {exc}")
 
     with connect() as db:

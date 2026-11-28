@@ -5,10 +5,9 @@ import base64
 import json
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app import automation, main
 from app.main import app
+from fastapi.testclient import TestClient
 
 
 def basic(user: str, password: str) -> dict[str, str]:

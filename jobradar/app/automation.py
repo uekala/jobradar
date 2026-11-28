@@ -11,9 +11,10 @@ import json
 import logging
 import os
 import re
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -89,7 +90,7 @@ def local_now() -> datetime:
             return datetime.now(ZoneInfo(name))
         except (ZoneInfoNotFoundError, ValueError):
             _LOGGER.warning("Zeitzone %r unbekannt; der Zeitplan rechnet in UTC", name)
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def search_due(now: datetime, search_time: str, last_date: str | None) -> bool:
@@ -230,7 +231,7 @@ def notify_result(result: dict[str, Any], options: dict[str, Any]) -> bool:
         return False
     try:
         send_notification(service, *notification)
-    except Exception as err:  # noqa: BLE001 - ein gescheiterter Push beendet den Lauf nicht
+    except Exception as err:  # ein gescheiterter Push beendet den Lauf nicht
         _LOGGER.error("Benachrichtigung fehlgeschlagen: %s", err)
         return False
     return True
@@ -250,7 +251,7 @@ def run_scheduled_search(
         # nicht jede Minute wiederholt, der nächste Versuch ist morgen.
         mark_scheduled(now.date().isoformat())
         result = run("schedule")
-    except Exception as err:  # noqa: BLE001 - der Dienst läuft weiter
+    except Exception as err:  # der Dienst läuft weiter
         _LOGGER.error("Täglicher Suchlauf fehlgeschlagen: %s", err)
         return None
     summary = result.get("run") or {}

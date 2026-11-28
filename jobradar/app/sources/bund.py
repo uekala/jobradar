@@ -12,9 +12,10 @@ import html
 import re
 import time
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from datetime import datetime
 from email.utils import parsedate_to_datetime
-from typing import Any, Callable
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen

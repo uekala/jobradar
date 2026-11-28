@@ -5,7 +5,6 @@ import os
 import sqlite3
 from pathlib import Path
 
-
 DEFAULT_DB_PATH = "/data/jobradar.db"
 SCHEMA_VERSION = 4
 

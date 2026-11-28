@@ -11,7 +11,6 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-
 BASE_URL = "https://api.karriere.nrw/v1.0/opennrw"
 
 

@@ -79,13 +79,13 @@ def evaluate_vacancy_detailed(
             continue
         category = data.get("category", "positive")
         if category == "exclude":
-            return {"score": 0, "excluded": True, "base_score": 0, "breakdown": breakdown + [{"label": "Ausschlussregel", "points": 0, "detail": ", ".join(matches)}]}
+            return {"score": 0, "excluded": True, "base_score": 0, "breakdown": [*breakdown, {"label": "Ausschlussregel", "points": 0, "detail": ", ".join(matches)}]}
         weight = max(-100, min(100, int(data.get("weight", 0) or 0)))
         points = abs(weight) if category == "positive" else -abs(weight)
         score += points
         breakdown.append({"label": str(data.get("name") or rule.get("id") or "Bewertungsregel"), "points": points, "detail": f"{category}: {', '.join(matches)}"})
 
-    base_score = max(0, min(100, int(round(score))))
+    base_score = max(0, min(100, round(score)))
     return {"score": base_score, "base_score": base_score, "excluded": False, "breakdown": breakdown}
 
 

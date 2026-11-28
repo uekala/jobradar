@@ -3,10 +3,9 @@ from __future__ import annotations
 
 import json
 
-from fastapi.testclient import TestClient
-
 from app.main import app, apply_setup_file
 from app.scoring import evaluate_vacancy
+from fastapi.testclient import TestClient
 
 SETUP = {
     "profil": {"location": "Musterstadt", "radius_km": 30, "roles": ["Systemadministrator"]},
@@ -94,7 +93,7 @@ def test_title_only_rules_ignore_the_description():
     exclude = {"id": "aus", "data": {"name": "Aus", "category": "exclude",
                                      "terms": ["Ausbildung"], "scope": "title"}}
     job = {"title": "Systemadministrator", "description": "Abgeschlossene Ausbildung, kein 1st Level"}
-    score_plain, excluded = evaluate_vacancy(job, {}, [])
+    score_plain, _excluded = evaluate_vacancy(job, {}, [])
     assert evaluate_vacancy(job, {}, [rule, exclude]) == (score_plain, False)
     trainee = {"title": "Ausbildung Fachinformatiker", "description": ""}
     assert evaluate_vacancy(trainee, {}, [exclude])[1] is True
