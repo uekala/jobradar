@@ -20,11 +20,11 @@ jobs:
       matrix:
         include:
           - scope: runtime
-            python-version: "3.12"
+            python-version: "3.14"
             requirements: "-r jobradar/requirements.txt"
             output: sbom-runtime-python.cdx.json
           - scope: standalone-tests
-            python-version: "3.12"
+            python-version: "3.14"
             requirements: "-r jobradar/requirements.txt -r jobradar/requirements-dev.txt"
             output: sbom-standalone-tests-python.cdx.json
           - scope: ha-integration-tests
