@@ -1,5 +1,13 @@
 # Änderungen der Jobradar-App
 
+## 0.8.0
+
+- **Bewerbungen.** Neue Ansicht mit drei Spalten Gemerkt, Beworben und Absage, jeweils mit Datum. Bewerbungen ohne Antwort seit 14 Tagen sind markiert.
+- **Schnellknöpfe.** An jeder Stelle stehen die nächsten Schritte („Merken“, „Beworben“, „Verwerfen“ …). Sie wirken sofort, eine Meldung bietet „Rückgängig“.
+- **Statusverlauf.** Jeder Statuswechsel wird mit Datum festgehalten und im Stellenfenster angezeigt.
+- **Sortierung.** Beste Treffer, Neueste, Zuletzt gesehen oder Ort A–Z; die Wahl bleibt gespeichert.
+- **Einrichtung.** Suchquellen, Suchprofil, Bewertungsregeln und Datenübernahme liegen jetzt in einem eigenen Reiter statt in der Seitenleiste.
+
 ## 0.7.1
 
 - **Bedienung.** Fenster schließen mit Escape und Klick daneben, der Fokus springt ins erste Eingabefeld und danach zurück. Stellenkarten lassen sich mit Tab und Enter öffnen.

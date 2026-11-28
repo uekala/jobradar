@@ -153,6 +153,15 @@ def initialize_database(db_path: str | None = None) -> None:
                 imported_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS job_status_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                previous TEXT,
+                at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_job_status_events_job ON job_status_events(job_id, at);
+
             INSERT INTO schema_meta(key, value)
             VALUES ('schema_version', '4')
             ON CONFLICT(key) DO UPDATE SET value = excluded.value;
@@ -167,6 +176,7 @@ def initialize_database(db_path: str | None = None) -> None:
             "imported_at": "TEXT",
             "import_source": "TEXT",
             "import_json": "TEXT",
+            "status_changed_at": "TEXT",
         })
         _add_missing_columns(db, "runs", {
             "sources": "TEXT",
