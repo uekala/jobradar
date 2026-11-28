@@ -24,7 +24,7 @@ Der eigenständige Jobradar auf Home Assistant Green wird die zentrale Anwendung
 | Zeitplanung | Scheduler im Add-on | tägliche Suche und wöchentliche Wartung |
 | Oberfläche | responsives Web-Dashboard | Desktop und Smartphone, eingebettet über Ingress |
 | Benachrichtigungen | Home Assistant | tägliche Zusammenfassung und wichtige Hinweise |
-| Quellcode | privates GitHub-Repository | Versionierung, Tests und reproduzierbare Builds |
+| Quellcode | öffentliches GitHub-Repository | Versionierung, Tests und reproduzierbare Builds |
 
 ## Dashboard – Gestaltungsrichtung
 

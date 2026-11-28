@@ -1,6 +1,6 @@
 # Jobradar – zentrale Plattform
 
-Dieses private Repository bündelt die bisherigen Jobradar-Bestandteile und hält die bestehenden Betriebsarten während der Konsolidierung getrennt.
+Dieses Repository bündelt die bisherigen Jobradar-Bestandteile und hält die bestehenden Betriebsarten während der Konsolidierung getrennt.
 
 <p>
   <img src="docs/dashboard.png" alt="Dashboard des Jobradar-Dienstes mit Kennzahlen, Stellenliste mit Match-Punkten, Statusübersicht und letztem Suchlauf" width="640">
@@ -67,7 +67,7 @@ Die bestehende Integration bleibt bis zur abgeschlossenen Migration verfügbar. 
 
 ## Datenschutz
 
-Das Repository bleibt privat. Suchprofil, konkrete Stellen, Notizen, Lernregeln und Laufdaten gehören nicht in Quelldateien oder Commits. Keine Zugangsdaten, Tokens oder privaten Schlüssel einchecken.
+Das Repository ist öffentlich. Suchprofil, konkrete Stellen, Notizen, Lernregeln und Laufdaten gehören nicht in Quelldateien oder Commits. Keine Zugangsdaten, Tokens oder privaten Schlüssel einchecken.
 
 ## Datenmigration und Sicherheit
 
